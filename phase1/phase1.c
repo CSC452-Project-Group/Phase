@@ -172,7 +172,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 	int i;
 	for(i = 0; i < MAXPROC; i++){
 		//If find an empty slot
-		if(ProcTable[i].status == NO_PROCESS){
+		if(ProcTable[i].status == 0){
 			procSlot = i;
 			break;
 		}
