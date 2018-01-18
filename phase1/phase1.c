@@ -29,8 +29,16 @@ int debugflag = 1;
 // the process table
 procStruct ProcTable[MAXPROC];
 
+// current size of proctable
+static int curProcSize = 0;
+
 // Process lists
-static procPtr ReadyList;
+static procPtr pr1;
+static procPtr pr2;
+static procPtr pr3;
+static procPtr pr4;
+static procPtr pr5;
+static procPtr pr6;
 
 // current process ID
 procPtr Current;
@@ -59,7 +67,12 @@ void startup(int argc, char *argv[])
     // Initialize the Ready list, etc.
     if (DEBUG && debugflag)
         USLOSS_Console("startup(): initializing the Ready list\n");
-    ReadyList = NULL;
+    pr1 = NULL;
+	pr2 = NULL;
+	pr3 = NULL;
+	pr4 = NULL;
+	pr5 = NULL;
+	pr6 = NULL;
 
     // Initialize the clock interrupt handler
 
@@ -126,10 +139,22 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         USLOSS_Console("fork1(): creating process %s\n", name);
 
     // test if in kernel mode; halt if in user mode
+	if (!(USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet())){
+		USLOSS_Console("fork1() : process %s is not in kernel mode\n", name);
+		USLOSS_Halt(1);
+	}
 
     // Return if stack size is too small
+	if (stacksize < USLOSS_MIN_STACK) {
+		USLOSS_Console("fork1() : stacksize for process %s too small\n", name); 
+		return -2;
+	}
 
     // Is there room in the process table? What is the next PID?
+	if (curProcSize >= MAXPROC){
+		USLOSS_Console("fork1() : no room in process table for process %s\n", name); 
+		return procSlot;
+	}
 
     // fill-in entry in process table */
     if ( strlen(name) >= (MAXNAME - 1) ) {
@@ -149,6 +174,11 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
+	
+	ProcTable[procSlot].stack = malloc(stacksize);
+	if (ProcTable[procSlot].stack == NULL) {
+		USLOSS_Console("fork1() : not enough memory for process %s stack\n");
+	}
 
     USLOSS_ContextInit(&(ProcTable[procSlot].state),
                        ProcTable[procSlot].stack,
