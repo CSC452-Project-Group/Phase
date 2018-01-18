@@ -149,12 +149,44 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 		USLOSS_Console("fork1() : stacksize for process %s too small\n", name); 
 		return -2;
 	}
-
-    // Is there room in the process table? What is the next PID?
-	if (curProcSize >= MAXPROC){
-		USLOSS_Console("fork1() : no room in process table for process %s\n", name); 
-		return procSlot;
+	
+    // Return if priority is wrong
+	if(priority < MAXPRIORITY || prioroty > MINPRIORITY){
+		USLOSS_Console("fork1() : priority for process %s is wrong\n", name);
+		return -1;	
 	}
+
+    // Return if name startFunc is NULL
+	if(name == NULL){
+		USLOSS_Console("fork1() : name for process %s is NULL\n", name);
+		return -1;	
+	}
+	
+    // Return if startFunc is NULL
+	if(startFunc == NULL){
+		USLOSS_Console("fork1() : startFunc for process %s is NULL\n", name);
+		return -1;	
+	}	
+	
+    // Is there room in the process table? What is the next PID?
+	int i;
+	for(i = 0; i < MAXPROC; i++){
+		//If find an empty slot
+		if(ProcTable[i].status == NO_PROCESS){
+			procSlot = i;
+			break;
+		}
+	}
+	USLOSS_Console("fork1(): New PID is %d\n", procSlot);
+	//No room in the process table, return
+	if(procSlot == -1){
+		USLOSS_Console("fork1() : No room for process %s\n", name);
+		return -1;	
+	}
+	//if (curProcSize >= MAXPROC){
+	//	USLOSS_Console("fork1() : no room in process table for process %s\n", name); 
+	//	return procSlot;
+	//}
 
     // fill-in entry in process table */
     if ( strlen(name) >= (MAXNAME - 1) ) {
