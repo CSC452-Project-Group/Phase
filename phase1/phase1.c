@@ -142,7 +142,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         USLOSS_Console("fork1(): creating process %s\n", name);
 
     // test if in kernel mode; halt if in user mode
-	if (!(USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet())){
+	if (psr.bits.curMode == 0){
 		USLOSS_Console("fork1() : process %s is not in kernel mode\n", name);
 		USLOSS_Halt(1);
 	}
