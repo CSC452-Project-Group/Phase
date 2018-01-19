@@ -212,15 +212,21 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     else
         strcpy(ProcTable[procSlot].startArg, arg);
 	
-	ProcTable[procSlot].
-
-    // Initialize context for this process, but use launch function pointer for
-    // the initial value of the process's program counter (PC)
-	
+	ProcTable[procSlot].nextProcPtr = NULL;
+	ProcTable[procSlot].childProcPtr = NULL;
+	ProcTable[procSlot].nextSibling = NULL;
+	ProcTable[procSlot].state = READY;
+	ProcTable[procSlot].pid = pid;
+	ProcTable[procSlot].priority = priority;
 	ProcTable[procSlot].stack = malloc(stacksize);
 	if (ProcTable[procSlot].stack == NULL) {
 		USLOSS_Console("fork1() : not enough memory for process %s stack\n");
 	}
+	
+    // Initialize context for this process, but use launch function pointer for
+    // the initial value of the process's program counter (PC)
+	
+	
 
     USLOSS_ContextInit(&(ProcTable[procSlot].state),
                        ProcTable[procSlot].stack,
