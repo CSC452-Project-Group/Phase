@@ -172,15 +172,16 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 	}	
 	
     // Is there room in the process table? What is the next PID?
-	
-// TODO: find out what to do if there is no space in the proc table
-	
 	// loop till a pid with a proc slot can be found
-	while(1) {
+	int i;
+	for(i = 0; i < 50; i++) {
 		if(ProcTable[nextPid%50] == NULL) {
 			procSlot = nextPid%50;
 			pid = nextPid;
 			nextPid++;
+			break;
+		}
+		else if (i == 49) {
 			break;
 		}
 		else {
@@ -194,10 +195,6 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 		USLOSS_Console("fork1() : No room for process %s\n", name);
 		return -1;	
 	}
-	//if (curProcSize >= MAXPROC){
-	//	USLOSS_Console("fork1() : no room in process table for process %s\n", name); 
-	//	return procSlot;
-	//}
 
     // fill-in entry in process table */
     if ( strlen(name) >= (MAXNAME - 1) ) {
