@@ -134,6 +134,9 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
           int stacksize, int priority)
 {
     int procSlot = -1;
+	unsigned int pid = 0;
+	struct psrBits psr;
+	psr.integerPart	= USLOSS_PsrGet();
 
     if (DEBUG && debugflag)
         USLOSS_Console("fork1(): creating process %s\n", name);
@@ -169,14 +172,22 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 	}	
 	
     // Is there room in the process table? What is the next PID?
-	int i;
-	for(i = 0; i < MAXPROC; i++){
-		//If find an empty slot
-		if(ProcTable[i].status == 0){
-			procSlot = i;
+	
+// TODO: find out what to do if there is no space in the proc table
+	
+	// loop till a pid with a proc slot can be found
+	while(1) {
+		if(ProcTable[nextPid%50] == NULL) {
+			procSlot = nextPid%50;
+			pid = nextPid;
+			nextPid++;
 			break;
 		}
+		else {
+			nextPid++;
+		}
 	}
+	
 	USLOSS_Console("fork1(): New PID is %d\n", procSlot);
 	//No room in the process table, return
 	if(procSlot == -1){
@@ -203,6 +214,8 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     }
     else
         strcpy(ProcTable[procSlot].startArg, arg);
+	
+	ProcTable[procSlot].
 
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
