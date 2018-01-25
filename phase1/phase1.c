@@ -19,7 +19,11 @@ int sentinel (char *);
 void dispatcher(void);
 void launch();
 static void checkDeadlock();
-
+void disableInterrupts();
+void enableInterrupts();
+void isKernelMode();
+struct procPtr getLastProc(struct procPtr);
+struct procPtr getReadyList(int priority);
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -350,8 +354,10 @@ void quit(int status)
 void dispatcher(void)
 {
     //Test for kernel mode
+    isKernelMode();
     
     //disable interrupts
+    disableInterrupts();
     
     procPtr nextProcess = NULL;
     
@@ -458,7 +464,7 @@ void isKernelMode() {
 /*
  * returns pointer to last node in the given ready table
  */
-struct procPtr getLastProc(Struct procPtr head) {
+struct procPtr getLastProc(struct procPtr head) {
     struct procPtr cur = head;
     
     while (cur != NULL) {
