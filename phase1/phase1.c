@@ -394,6 +394,14 @@ int sentinel (char *dummy)
 /* check to determine if deadlock has occurred... */
 static void checkDeadlock()
 {
+    if (procNum > 1){
+        USLOSS_Console("Number of process left: %d, Deadlock appears! Halting...\n", procNum);
+        USLOSS_Halt(1);
+    }
+    else{
+        USLOSS_Console("No processes left!\n");
+	USLOSS_Halt(0);
+    }
 } /* checkDeadlock */
 
 
