@@ -68,11 +68,11 @@ void startup(int argc, char *argv[])
     if (DEBUG && debugflag)
         USLOSS_Console("startup(): initializing the Ready list\n");
     pr1 = NULL;
-	pr2 = NULL;
-	pr3 = NULL;
-	pr4 = NULL;
-	pr5 = NULL;
-	pr6 = NULL;
+    pr2 = NULL;
+    pr3 = NULL;
+    pr4 = NULL;
+    pr5 = NULL;
+    pr6 = NULL;
 
     // Initialize the clock interrupt handler
 
@@ -134,9 +134,9 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
           int stacksize, int priority)
 {
     int procSlot = -1;
-	unsigned int pid = 0;
-	struct psrBits psr;
-	psr.integerPart	= USLOSS_PsrGet();
+    unsigned int pid = 0;
+    struct psrBits psr;
+    psr.integerPart	= USLOSS_PsrGet();
 
     if (DEBUG && debugflag)
         USLOSS_Console("fork1(): creating process %s\n", name);
@@ -166,35 +166,35 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 	}
 	
     // Return if startFunc is NULL
-	if(startFunc == NULL){
-		USLOSS_Console("fork1() : startFunc for process %s is NULL\n", name);
-		return -1;	
-	}	
-	
-    // Is there room in the process table? What is the next PID?
-	// loop till a pid with a proc slot can be found
-	int i;
-	for(i = 0; i < 50; i++) {
-		if(ProcTable[nextPid%50] == NULL) {
-			procSlot = nextPid%50;
-			pid = nextPid;
-			nextPid++;
-			break;
-		}
-		else if (i == 49) {
-			break;
-		}
-		else {
-			nextPid++;
-		}
-	}
-	
-	USLOSS_Console("fork1(): New PID is %d\n", procSlot);
-	//No room in the process table, return
-	if(procSlot == -1){
-		USLOSS_Console("fork1() : No room for process %s\n", name);
-		return -1;	
-	}
+    if(startFunc == NULL){
+      USLOSS_Console("fork1() : startFunc for process %s is NULL\n", name);
+      return -1;	
+    }	
+
+      // Is there room in the process table? What is the next PID?
+    // loop till a pid with a proc slot can be found
+    int i;
+    for(i = 0; i < 50; i++) {
+      if(ProcTable[nextPid%50] == NULL) {
+        procSlot = nextPid%50;
+        pid = nextPid;
+        nextPid++;
+        break;
+      }
+      else if (i == 49) {
+        break;
+      }
+      else {
+        nextPid++;
+      }
+    }
+
+    USLOSS_Console("fork1(): New PID is %d\n", procSlot);
+    //No room in the process table, return
+    if(procSlot == -1){
+      USLOSS_Console("fork1() : No room for process %s\n", name);
+      return -1;	
+    }
 
     // fill-in entry in process table */
     if ( strlen(name) >= (MAXNAME - 1) ) {
@@ -212,20 +212,19 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     else
         strcpy(ProcTable[procSlot].startArg, arg);
 	
-	ProcTable[procSlot].nextProcPtr = NULL;
-	ProcTable[procSlot].childProcPtr = NULL;
-	ProcTable[procSlot].nextSibling = NULL;
-	ProcTable[procSlot].state = READY;
-	ProcTable[procSlot].pid = pid;
-	ProcTable[procSlot].priority = priority;
-	ProcTable[procSlot].stack = malloc(stacksize);
-	if (ProcTable[procSlot].stack == NULL) {
-		USLOSS_Console("fork1() : not enough memory for process %s stack\n");
-	}
+        ProcTable[procSlot].nextProcPtr = NULL;
+        ProcTable[procSlot].childProcPtr = NULL;
+        ProcTable[procSlot].nextSibling = NULL;
+        ProcTable[procSlot].state = READY;
+        ProcTable[procSlot].pid = pid;
+        ProcTable[procSlot].priority = priority;
+        ProcTable[procSlot].stack = malloc(stacksize);
+    if (ProcTable[procSlot].stack == NULL) {
+        USLOSS_Console("fork1() : not enough memory for process %s stack\n");
+    }
 	
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
-	
 	
 
     USLOSS_ContextInit(&(ProcTable[procSlot].state),
@@ -284,6 +283,26 @@ void launch()
    ------------------------------------------------------------------------ */
 int join(int *status)
 {
+    // test if its in kernel mode; disable Interrupts
+
+    // Child process:
+    procPtr child = Current->childProcPtr;
+
+    if(child != NULL){
+        Current->status = BLOCKED;
+        dispatcher();
+        if ( Current -> quitChildPtr != NULL) {
+            *status = Current->quitChildPtr->status;
+            Current->quitChildPtr->status = UNUSED;
+        }
+        else{
+            dispatcher();
+        }
+        enableInterrupts();
+        return Current->quitChildPtr->pid;
+    }
+
+    enableInterrupts();
     return -1;  // -1 is not correct! Here to prevent warning.
 } /* join */
 
@@ -315,9 +334,22 @@ void quit(int status)
    ----------------------------------------------------------------------- */
 void dispatcher(void)
 {
+    //Test for kernel mode
+    
+    //disable interrupts
+    
     procPtr nextProcess = NULL;
-
-    p1_switch(Current->pid, nextProcess->pid);
+    
+    //Check if current is still running, move to the back of the ready list
+    if(Current->status == RUNNING) {
+        Current->status = READY;
+        //We need a function to move the current process, I will call it moveBack() for now
+        moveBack(&ReadyList[Current->priority-1]);
+        //Another function to move the next one forward
+        moveForward(&ReadyList[Current->priority-1], Current);
+    }
+    
+    
 } /* dispatcher */
 
 
@@ -358,5 +390,32 @@ void disableInterrupts()
     // turn the interrupts OFF iff we are in kernel mode
     // if not in kernel mode, print an error message and
     // halt USLOSS
+    
+    //Check kernel mode
+    isKernelMode();
+
+    int status = USLOSS_PsrSet( USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_INT );
+    if(status == USLOSS_ERR_INVALID_PSR){
+        USLOSS_Console("disableInterrupts(): error invalid psr, (halting)");
+        USLOSS_Halt(1);
+    }
+
 
 } /* disableInterrupts */
+
+/*
+ * Enables the interrupts.
+ */
+void enableInterrupts()
+{
+    // turn the interrupts ON iff we are in kernel mode
+    // if not in kernel mode, print an error message and
+    // halt USLOSS
+    isKernelMode();
+
+    int status = USLOSS_PsrSet( USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT );
+    if(status == USLOSS_ERR_INVALID_PSR){
+        USLOSS_Console("enableInterrupts(): error invalid psr, (halting)");
+        USLOSS_Halt(1);
+    }
+}
