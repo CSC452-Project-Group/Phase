@@ -213,13 +213,14 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         ProcTable[procSlot].nextProcPtr = NULL;
         ProcTable[procSlot].childProcPtr = NULL;
         ProcTable[procSlot].nextSibling = NULL;
-        ProcTable[procSlot].state = READY;
         ProcTable[procSlot].pid = pid;
         ProcTable[procSlot].priority = priority;
         ProcTable[procSlot].stack = malloc(stacksize);
     if (ProcTable[procSlot].stack == NULL) {
         USLOSS_Console("fork1() : not enough memory for process %s stack\n");
     }
+        ProcTable[procSlot].stackSize = stacksize;
+        ProcTable[procSlot].status = READY;
 	
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
@@ -234,7 +235,9 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     // for future phase(s)
     p1_fork(ProcTable[procSlot].pid);
 
-    // More stuff to do here...
+    if(priority == 1) {
+        
+    }    
 
     return -1;  // -1 is not correct! Here to prevent warning.
 } /* fork1 */
@@ -255,6 +258,7 @@ void launch()
         USLOSS_Console("launch(): started\n");
 
     // Enable interrupts
+    enableInterrupts();
 
     // Call the function passed to fork1, and capture its return value
     result = Current->startFunc(Current->startArg);
@@ -430,4 +434,11 @@ void isKernelMode() {
 		USLOSS_Console("fork1() : process %s is not in kernel mode\n", name);
 		USLOSS_Halt(1);
 	}
+}
+
+/*
+ * returns pointer to last node in the given ready table
+ */
+struct *procStruct getLastProc(Struct procStruct * head) {
+    
 }
