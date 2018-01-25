@@ -1,0 +1,6 @@
+
+.metadata
+*.o
+*.a
+*.out
+test*

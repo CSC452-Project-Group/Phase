@@ -29,8 +29,16 @@ int debugflag = 1;
 // the process table
 procStruct ProcTable[MAXPROC];
 
+// current size of proctable
+static int curProcSize = 0;
+
 // Process lists
-static procPtr ReadyList;
+static procPtr pr1;
+static procPtr pr2;
+static procPtr pr3;
+static procPtr pr4;
+static procPtr pr5;
+static procPtr pr6;
 
 // current process ID
 procPtr Current;
@@ -59,7 +67,12 @@ void startup(int argc, char *argv[])
     // Initialize the Ready list, etc.
     if (DEBUG && debugflag)
         USLOSS_Console("startup(): initializing the Ready list\n");
-    ReadyList = NULL;
+    pr1 = NULL;
+    pr2 = NULL;
+    pr3 = NULL;
+    pr4 = NULL;
+    pr5 = NULL;
+    pr6 = NULL;
 
     // Initialize the clock interrupt handler
 
@@ -121,15 +134,67 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
           int stacksize, int priority)
 {
     int procSlot = -1;
+    unsigned int pid = 0;
+    struct psrBits psr;
+    psr.integerPart	= USLOSS_PsrGet();
 
     if (DEBUG && debugflag)
         USLOSS_Console("fork1(): creating process %s\n", name);
 
     // test if in kernel mode; halt if in user mode
+	if (psr.bits.curMode == 0){
+		USLOSS_Console("fork1() : process %s is not in kernel mode\n", name);
+		USLOSS_Halt(1);
+	}
 
     // Return if stack size is too small
+	if (stacksize < USLOSS_MIN_STACK) {
+		USLOSS_Console("fork1() : stacksize for process %s too small\n", name); 
+		return -2;
+	}
+	
+    // Return if priority is wrong
+	if(priority < MAXPRIORITY || prioroty > MINPRIORITY){
+		USLOSS_Console("fork1() : priority for process %s is wrong\n", name);
+		return -1;	
+	}
 
-    // Is there room in the process table? What is the next PID?
+    // Return if name startFunc is NULL
+	if(name == NULL){
+		USLOSS_Console("fork1() : name for process %s is NULL\n", name);
+		return -1;	
+	}
+	
+    // Return if startFunc is NULL
+    if(startFunc == NULL){
+      USLOSS_Console("fork1() : startFunc for process %s is NULL\n", name);
+      return -1;	
+    }	
+
+      // Is there room in the process table? What is the next PID?
+    // loop till a pid with a proc slot can be found
+    int i;
+    for(i = 0; i < 50; i++) {
+      if(ProcTable[nextPid%50] == NULL) {
+        procSlot = nextPid%50;
+        pid = nextPid;
+        nextPid++;
+        break;
+      }
+      else if (i == 49) {
+        break;
+      }
+      else {
+        nextPid++;
+      }
+    }
+
+    USLOSS_Console("fork1(): New PID is %d\n", procSlot);
+    //No room in the process table, return
+    if(procSlot == -1){
+      USLOSS_Console("fork1() : No room for process %s\n", name);
+      return -1;	
+    }
 
     // fill-in entry in process table */
     if ( strlen(name) >= (MAXNAME - 1) ) {
@@ -146,9 +211,21 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     }
     else
         strcpy(ProcTable[procSlot].startArg, arg);
-
+	
+        ProcTable[procSlot].nextProcPtr = NULL;
+        ProcTable[procSlot].childProcPtr = NULL;
+        ProcTable[procSlot].nextSibling = NULL;
+        ProcTable[procSlot].state = READY;
+        ProcTable[procSlot].pid = pid;
+        ProcTable[procSlot].priority = priority;
+        ProcTable[procSlot].stack = malloc(stacksize);
+    if (ProcTable[procSlot].stack == NULL) {
+        USLOSS_Console("fork1() : not enough memory for process %s stack\n");
+    }
+	
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
+	
 
     USLOSS_ContextInit(&(ProcTable[procSlot].state),
                        ProcTable[procSlot].stack,
@@ -273,7 +350,6 @@ void dispatcher(void)
     }
     
     
-    p1_switch(Current->pid, nextProcess->pid);
 } /* dispatcher */
 
 
