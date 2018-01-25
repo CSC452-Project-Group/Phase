@@ -32,6 +32,9 @@ procStruct ProcTable[MAXPROC];
 // current size of proctable
 static int curProcSize = 0;
 
+// psr bit struct
+struct psrBits psr;
+
 // Process lists
 static procPtr pr1;
 static procPtr pr2;
@@ -135,17 +138,12 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 {
     int procSlot = -1;
     unsigned int pid = 0;
-    struct psrBits psr;
-    psr.integerPart	= USLOSS_PsrGet();
 
     if (DEBUG && debugflag)
         USLOSS_Console("fork1(): creating process %s\n", name);
-
+    
     // test if in kernel mode; halt if in user mode
-	if (psr.bits.curMode == 0){
-		USLOSS_Console("fork1() : process %s is not in kernel mode\n", name);
-		USLOSS_Halt(1);
-	}
+	isKernelMode();
 
     // Return if stack size is too small
 	if (stacksize < USLOSS_MIN_STACK) {
@@ -284,7 +282,9 @@ void launch()
 int join(int *status)
 {
     // test if its in kernel mode; disable Interrupts
-
+    isKernelMode();
+    disableInterrupts();
+    
     // Child process:
     procPtr child = Current->childProcPtr;
 
@@ -418,4 +418,16 @@ void enableInterrupts()
         USLOSS_Console("enableInterrupts(): error invalid psr, (halting)");
         USLOSS_Halt(1);
     }
+}
+
+/*
+ * Checks if currently in kernel mode
+ */
+void isKernelMode() {
+    psr.integerPart	= USLOSS_PsrGet(); // get the usloss psr
+    
+    if (psr.bits.curMode == 0){
+		USLOSS_Console("fork1() : process %s is not in kernel mode\n", name);
+		USLOSS_Halt(1);
+	}
 }
