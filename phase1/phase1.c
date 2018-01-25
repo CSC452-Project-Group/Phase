@@ -82,6 +82,8 @@ void startup(int argc, char *argv[])
     pr4 = NULL;
     pr5 = NULL;
     pr6 = NULL;
+    
+    Current = NULL;
 
     // Initialize the clock interrupt handler
 
@@ -242,11 +244,13 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     // for future phase(s)
     p1_fork(ProcTable[procSlot].pid);
 
-    if(priority == 1) {
-        
-    }    
+    getLastProc(getReadyList(priority)) = ProcTable[procSlot]; 
 
-    return -1;  // -1 is not correct! Here to prevent warning.
+    if (priority != 6) {
+        dispatcher();
+    }
+
+    return ProcTable[procSlot].pid;  // -1 is not correct! Here to prevent warning.
 } /* fork1 */
 
 /* ------------------------------------------------------------------------
@@ -446,6 +450,33 @@ void isKernelMode() {
 /*
  * returns pointer to last node in the given ready table
  */
-struct *procStruct getLastProc(Struct procStruct * head) {
+struct procPtr getLastProc(Struct procPtr head) {
+    struct procPtr cur = head;
     
+    while (cur != NULL) {
+        cur = cur.nextProcPtr;
+    }
+    
+    return cur;
+}
+
+/*
+ * gets the correct ready list for the priority given
+ */
+struct procPtr getReadyList(int priority) {
+    if (priority == 1) {
+        return pr1;
+    } else if (priority == 2) {
+        return pr2;
+    } else if (priority == 3) {
+        return pr3;
+    } else if (priority == 4) {
+        return pr4;
+    } else if (priority == 5) {
+        return pr5;
+    } else if (priority == 6) {
+        return pr6;
+    } else {
+        return NULL;
+    }
 }
