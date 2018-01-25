@@ -32,6 +32,9 @@ procStruct ProcTable[MAXPROC];
 // current size of proctable
 static int curProcSize = 0;
 
+//The number of process
+int procNum;
+
 // psr bit struct
 struct psrBits psr;
 
@@ -66,6 +69,9 @@ void startup(int argc, char *argv[])
     /* initialize the process table */
     if (DEBUG && debugflag)
         USLOSS_Console("startup(): initializing process table, ProcTable[]\n");
+
+    // Initizlize the process number
+    procNum = 0;
 
     // Initialize the Ready list, etc.
     if (DEBUG && debugflag)
@@ -216,15 +222,16 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         ProcTable[procSlot].pid = pid;
         ProcTable[procSlot].priority = priority;
         ProcTable[procSlot].stack = malloc(stacksize);
-    if (ProcTable[procSlot].stack == NULL) {
-        USLOSS_Console("fork1() : not enough memory for process %s stack\n");
-    }
+    	if (ProcTable[procSlot].stack == NULL) {
+        	USLOSS_Console("fork1() : not enough memory for process %s stack\n");
+		USLOSS_Halt(1);
+    	}	
         ProcTable[procSlot].stackSize = stacksize;
         ProcTable[procSlot].status = READY;
 	
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
-	
+    procNum++;	
 
     USLOSS_ContextInit(&(ProcTable[procSlot].state),
                        ProcTable[procSlot].stack,
