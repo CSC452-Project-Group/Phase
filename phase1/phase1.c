@@ -543,6 +543,7 @@ void cleanProc(int pid){
     ProcTable[i].pid = -1;               /* process id */
     ProcTable[i].priority = -1;
     ProcTable[i].startFunc = NULL;   /* function where process begins -- launch */
+    free(ProcTable[i].stack);
     ProcTable[i].stack = NULL;
     ProcTable[i].stackSize = -1;
     ProcTable[i].status = EMPTY;        /* READY, BLOCKED, QUIT, etc. */
