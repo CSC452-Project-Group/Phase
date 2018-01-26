@@ -375,7 +375,14 @@ void dispatcher(void)
         getReadyList(Current->priority) = getReadyList(Current->priority)->nextProcPtr;
     }
     
-    Current = getNextProc();
+    nextProcess = getNextProc();
+    
+    if (Current == NULL) {
+        USLOSS_ContextSwitch(NULL, nextProcess);
+    } else {
+        USLOSS_ContextSwitch(Current, nextProcess);
+    }
+    Current = nextProcess;
     
     enableInterrupts();
     
