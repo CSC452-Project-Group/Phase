@@ -19,7 +19,13 @@ int sentinel (char *);
 void dispatcher(void);
 void launch();
 static void checkDeadlock();
-
+void disableInterrupts();
+void enableInterrupts();
+void isKernelMode();
+struct procPtr getLastProc(struct procPtr);
+struct procPtr getReadyList(int priority);
+void moveBack(struct procPtr);
+struct procPtr getNextProc();
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -152,6 +158,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     
     // test if in kernel mode; halt if in user mode
 	isKernelMode();
+    disableInterrupts();
 
     // Return if stack size is too small
 	if (stacksize < USLOSS_MIN_STACK) {
@@ -250,6 +257,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         dispatcher();
     }
 
+    enableInterrupts();
     return ProcTable[procSlot].pid;  // -1 is not correct! Here to prevent warning.
 } /* fork1 */
 
@@ -387,20 +395,33 @@ void quit(int status)
 void dispatcher(void)
 {
     //Test for kernel mode
+    isKernelMode();
     
     //disable interrupts
+    disableInterrupts();
     
     procPtr nextProcess = NULL;
     
     //Check if current is still running, move to the back of the ready list
     if(Current->status == RUNNING) {
         Current->status = READY;
-        //We need a function to move the current process, I will call it moveBack() for now
-        moveBack(&ReadyList[Current->priority-1]);
-        //Another function to move the next one forward
-        moveForward(&ReadyList[Current->priority-1], Current);
+        moveBack(getReadyList(Current->priority));
     }
     
+    if(Current->status == BLOCKED) {
+        getReadyList(Current->priority) = getReadyList(Current->priority)->nextProcPtr;
+    }
+    
+    nextProcess = getNextProc();
+    
+    if (Current == NULL) {
+        USLOSS_ContextSwitch(NULL, nextProcess);
+    } else {
+        USLOSS_ContextSwitch(Current, nextProcess);
+    }
+    Current = nextProcess;
+    
+    enableInterrupts();
     
 } /* dispatcher */
 
@@ -495,11 +516,11 @@ void isKernelMode() {
 /*
  * returns pointer to last node in the given ready table
  */
-struct procPtr getLastProc(Struct procPtr head) {
+struct procPtr getLastProc(struct procPtr head) {
     struct procPtr cur = head;
     
     while (cur != NULL) {
-        cur = cur.nextProcPtr;
+        cur = cur->nextProcPtr;
     }
     
     return cur;
@@ -527,6 +548,7 @@ struct procPtr getReadyList(int priority) {
 }
 
 /*
+
 * CLean out the process
 */
 void cleanProc(int pid){
@@ -552,3 +574,40 @@ void cleanProc(int pid){
     enableInterrupts();
 
 }
+
+ * moves a process to the back of its ready list
+ */
+void moveBack(struct procPtr head) {
+    struct procPtr cur = head;
+    
+    while (cur != null) {
+        cur = cur->next;
+    }
+    
+    cur = Current;
+    cur->nextProcPtr = NULL;
+    head = head->nextProcPtr;
+}
+
+/*
+ * finds and returns the next process
+ */
+struct procPtr getNextProc() {
+    if (pr1 != NULL)
+        return pr1;
+    else if (pr2 != NULL)
+        return pr2;
+    else if (pr3 != NULL)
+        return pr3;
+    else if (pr4 != NULL)
+        return pr4;
+    else if (pr5 != NULL)
+        return pr5;
+    else 
+        return pr6;
+}
+
+
+
+
+
