@@ -24,6 +24,7 @@ void enableInterrupts();
 void isKernelMode();
 struct procPtr getLastProc(struct procPtr);
 struct procPtr getReadyList(int priority);
+void moveBack(struct procPtr);
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -364,12 +365,14 @@ void dispatcher(void)
     //Check if current is still running, move to the back of the ready list
     if(Current->status == RUNNING) {
         Current->status = READY;
-        //We need a function to move the current process, I will call it moveBack() for now
-        moveBack(&ReadyList[Current->priority-1]);
-        //Another function to move the next one forward
-        moveForward(&ReadyList[Current->priority-1], Current);
+        moveBack(getReadyList(Current->priority));
     }
     
+    if(Current->status == BLOCKED) {
+        getReadyList(Current->priority) = getReadyList(Current->priority)->nextProcPtr;
+    }
+    
+    Current = getNextProc();
     
 } /* dispatcher */
 
@@ -468,7 +471,7 @@ struct procPtr getLastProc(struct procPtr head) {
     struct procPtr cur = head;
     
     while (cur != NULL) {
-        cur = cur.nextProcPtr;
+        cur = cur->nextProcPtr;
     }
     
     return cur;
@@ -494,3 +497,42 @@ struct procPtr getReadyList(int priority) {
         return NULL;
     }
 }
+
+/*
+ * moves a process to the back of its ready list
+ */
+void moveBack(struct procPtr head) {
+    struct procPtr cur = head;
+    
+    while (cur != null) {
+        cur = cur->next;
+    }
+    
+    cur = Current;
+    cur->nextProcPtr = NULL;
+    head = head->nextProcPtr;
+}
+
+/*
+ * finds and returns the next process
+ */
+struct procPtr getNextProc() {
+    if (pr1 != NULL)
+        return pr1;
+    else if (pr2 != NULL)
+        return pr2;
+    else if (pr3 != NULL)
+        return pr3;
+    else if (pr4 != NULL)
+        return pr4;
+    else if (pr5 != NULL)
+        return pr5;
+    else 
+        return pr6;
+}
+
+
+
+
+
+
