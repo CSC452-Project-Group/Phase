@@ -158,6 +158,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     
     // test if in kernel mode; halt if in user mode
 	isKernelMode();
+    disableInterrupts();
 
     // Return if stack size is too small
 	if (stacksize < USLOSS_MIN_STACK) {
@@ -256,6 +257,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         dispatcher();
     }
 
+    enableInterrupts();
     return ProcTable[procSlot].pid;  // -1 is not correct! Here to prevent warning.
 } /* fork1 */
 
@@ -374,6 +376,8 @@ void dispatcher(void)
     }
     
     Current = getNextProc();
+    
+    enableInterrupts();
     
 } /* dispatcher */
 
