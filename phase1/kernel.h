@@ -19,8 +19,11 @@ struct procStruct {
    unsigned int    stackSize;
    int             status;        /* READY, BLOCKED, QUIT, etc. */
    /* other fields as needed... */
-   proPtr          parentProcPtr;
+   procPtr         parentProcPtr;
    int             lastProc;
+   procPtr         quitChild;
+   procPtr         nextQuitSibling;
+   
    
 };
 

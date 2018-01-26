@@ -351,27 +351,50 @@ void quit(int status)
     //change current status and store last status
     Current->status = QUIT;
     Current->lastProc = status;
-    //TODO:We need remove from the ready list
+    getReadyList(Current->priority) = getReadyList(Current->priority)->nextProcPtr;
 
-    if(Current->parentPtr != NULL){
-        //TODO:remove the child of the parent's children list
-        //     Add (Current) to the dead child list?
+    struct procPtr cur;
+    
+    if(Current->parentProcPtr != NULL){
+        cur = Current->parentProcPtr->childProcPtr;
+        
+        if (cur == Current) {
+            cur->parentProcPtr->childProcPtr = cur->nextSiblingPtr;
+        } else {
+            while (cur->nextSiblingPtr != Current) {
+                cur = cur->nextSiblingPtr;
+            }
+            cur->nextSiblingPtr = cur->nextSiblingPtr->nextSiblingPtr;
+        }
+        
+        if (Current->parentProcPtr->quitChild == NULL) {
+            Current->parentProcPtr->quitChild = Current;
+        } else {
+            cur = Current->parentProcPtr->quitChild;
+            while (cur != null) {
+                cur = cur->nextQuitSibling;
+            }
+            cur = Current;
+        }
+        
 
         //Unblock parent
-        if(Current->parentPtr->status == BLOCKED){
-	    Current->parentPtr->status = READY;
-	    //TODO:Add (Current->parentPtr) to the ready list
+        if(Current->parentProcPtr->status == BLOCKED){
+	    Current->parentProcPtr->status = READY;
+	    getLastProc(getReadyList(Current->parentProcPtr->priority)) = Current->parentProcPtr;
         }
     }
 
+    struct procPtr child = Current->quitChild
     //remove dead children
-    while(Current->deadchildrenqueue.size > 0){
-	proPtr child = //remove from the dead child queue;
+    while(child != NULL){
+        struct procPtr nextChild = child->nextQuitSibling;
         cleanProc(child->pid);
+        child = nextChild;
     } 
    
     //remove current if no parents
-    if(Current->parentPtr == NULL){
+    if(Current->parentProcPtr == NULL){
 	cleanProc(Current->pid);
     }
     
