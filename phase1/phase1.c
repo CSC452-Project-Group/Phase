@@ -25,6 +25,7 @@ void isKernelMode();
 struct procPtr getLastProc(struct procPtr);
 struct procPtr getReadyList(int priority);
 void moveBack(struct procPtr);
+struct procPtr getNextProc();
 
 /* -------------------------- Globals ------------------------------------- */
 
