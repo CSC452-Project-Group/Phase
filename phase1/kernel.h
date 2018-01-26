@@ -19,6 +19,9 @@ struct procStruct {
    unsigned int    stackSize;
    int             status;        /* READY, BLOCKED, QUIT, etc. */
    /* other fields as needed... */
+   proPtr          parentProcPtr;
+   int             lastProc;
+   
 };
 
 struct psrBits {
@@ -41,3 +44,8 @@ union psrValues {
 #define SENTINELPID 1
 #define SENTINELPRIORITY (MINPRIORITY + 1)
 
+#define EMPTY   0
+#define READY   1
+#define RUNNING 2
+#define QUIT    4
+#define BLOCKED 5

@@ -341,7 +341,44 @@ int join(int *status)
    ------------------------------------------------------------------------ */
 void quit(int status)
 {
+    //check if its in kernel mode
+    isKernelMode();
+    disableInterrupts();
+
+    //TODO:Halt when the quiting process has active children process
+    //We need loop through the children queue to find any active process
+
+    //change current status and store last status
+    Current->status = QUIT;
+    Current->lastProc = status;
+    //TODO:We need remove from the ready list
+
+    if(Current->parentPtr != NULL){
+        //TODO:remove the child of the parent's children list
+        //     Add (Current) to the dead child list?
+
+        //Unblock parent
+        if(Current->parentPtr->status == BLOCKED){
+	    Current->parentPtr->status = READY;
+	    //TODO:Add (Current->parentPtr) to the ready list
+        }
+    }
+
+    //remove dead children
+    while(Current->deadchildrenqueue.size > 0){
+	proPtr child = //remove from the dead child queue;
+        cleanProc(child->pid);
+    } 
+   
+    //remove current if no parents
+    if(Current->parentPtr == NULL){
+	cleanProc(Current->pid);
+    }
+    
     p1_quit(Current->pid);
+    
+    //run next process
+    dispatcher();
 } /* quit */
 
 
@@ -511,6 +548,33 @@ struct procPtr getReadyList(int priority) {
 }
 
 /*
+
+* CLean out the process
+*/
+void cleanProc(int pid){
+    isKernelMode();
+    disableInterrupts();
+
+    int i = pid % MAXPROC;
+
+    ProcTable[i].nextProcPtr = NULL;
+    ProcTable[i].childProcPtr = NULL;
+    ProcTable[i].nextSiblingPtr = NULL;
+    ProcTable[i].name[0] = 0;     /* process's name */
+    ProcTable[i].startArg[0] = 0;  /* args passed to process */
+    ProcTable[i].pid = -1;               /* process id */
+    ProcTable[i].priority = -1;
+    ProcTable[i].startFunc = NULL;   /* function where process begins -- launch */
+    free(ProcTable[i].stack);
+    ProcTable[i].stack = NULL;
+    ProcTable[i].stackSize = -1;
+    ProcTable[i].status = EMPTY;        /* READY, BLOCKED, QUIT, etc. */
+
+    procNum--;
+    enableInterrupts();
+
+}
+
  * moves a process to the back of its ready list
  */
 void moveBack(struct procPtr head) {
@@ -542,7 +606,6 @@ struct procPtr getNextProc() {
     else 
         return pr6;
 }
-
 
 
 
