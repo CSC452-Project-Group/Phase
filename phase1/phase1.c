@@ -22,10 +22,11 @@ static void checkDeadlock();
 void disableInterrupts();
 void enableInterrupts();
 void isKernelMode();
-struct procPtr getLastProc(struct procPtr);
-struct procPtr getReadyList(int priority);
-void moveBack(struct procPtr);
-struct procPtr getNextProc();
+procPtr getLastProc(procPtr);
+procPtr getReadyList(int);
+void moveBack(procPtr);
+procPtr getNextProc();
+void cleanProc(int);
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -35,22 +36,19 @@ int debugflag = 1;
 // the process table
 procStruct ProcTable[MAXPROC];
 
-// current size of proctable
-static int curProcSize = 0;
-
 //The number of process
 int procNum;
 
 // psr bit struct
-struct psrBits psr;
+//struct psrValues psr;
 
 // Process lists
-static procPtr pr1;
-static procPtr pr2;
-static procPtr pr3;
-static procPtr pr4;
-static procPtr pr5;
-static procPtr pr6;
+procPtr pr1;
+procPtr pr2;
+procPtr pr3;
+procPtr pr4;
+procPtr pr5;
+procPtr pr6;
 
 // current process ID
 procPtr Current;
@@ -167,7 +165,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 	}
 	
     // Return if priority is wrong
-	if(priority < MAXPRIORITY || prioroty > MINPRIORITY){
+	if(priority < MAXPRIORITY || priority > MINPRIORITY){
 		USLOSS_Console("fork1() : priority for process %s is wrong\n", name);
 		return -1;	
 	}
@@ -188,7 +186,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     // loop till a pid with a proc slot can be found
     int i;
     for(i = 0; i < 50; i++) {
-      if(ProcTable[nextPid%50] == NULL) {
+      if(ProcTable[nextPid%50].status == EMPTY) {
         procSlot = nextPid%50;
         pid = nextPid;
         nextPid++;
@@ -227,7 +225,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 	
         ProcTable[procSlot].nextProcPtr = NULL;
         ProcTable[procSlot].childProcPtr = NULL;
-        ProcTable[procSlot].nextSibling = NULL;
+        ProcTable[procSlot].nextSiblingPtr = NULL;
         ProcTable[procSlot].pid = pid;
         ProcTable[procSlot].priority = priority;
         ProcTable[procSlot].stack = malloc(stacksize);
@@ -314,15 +312,15 @@ int join(int *status)
     if(child != NULL){
         Current->status = BLOCKED;
         dispatcher();
-        if ( Current -> quitChildPtr != NULL) {
-            *status = Current->quitChildPtr->status;
-            Current->quitChildPtr->status = UNUSED;
+        if ( Current -> quitChild != NULL) {
+            *status = Current->quitChild->status;
+            Current->quitChild->status = EMPTY;
         }
         else{
             dispatcher();
         }
         enableInterrupts();
-        return Current->quitChildPtr->pid;
+        return Current->quitChild->pid;
     }
 
     enableInterrupts();
@@ -353,7 +351,7 @@ void quit(int status)
     Current->lastProc = status;
     getReadyList(Current->priority) = getReadyList(Current->priority)->nextProcPtr;
 
-    struct procPtr cur;
+    procPtr cur;
     
     if(Current->parentProcPtr != NULL){
         cur = Current->parentProcPtr->childProcPtr;
@@ -371,7 +369,7 @@ void quit(int status)
             Current->parentProcPtr->quitChild = Current;
         } else {
             cur = Current->parentProcPtr->quitChild;
-            while (cur != null) {
+            while (cur != NULL) {
                 cur = cur->nextQuitSibling;
             }
             cur = Current;
@@ -385,10 +383,10 @@ void quit(int status)
         }
     }
 
-    struct procPtr child = Current->quitChild
+    procPtr child = Current->quitChild;
     //remove dead children
     while(child != NULL){
-        struct procPtr nextChild = child->nextQuitSibling;
+        procPtr nextChild = child->nextQuitSibling;
         cleanProc(child->pid);
         child = nextChild;
     } 
@@ -438,9 +436,11 @@ void dispatcher(void)
     nextProcess = getNextProc();
     
     if (Current == NULL) {
-        USLOSS_ContextSwitch(NULL, nextProcess);
+        p1_switch(-1, nextProcess->pid);
+        USLOSS_ContextSwitch(NULL, &nextProcess->state);
     } else {
-        USLOSS_ContextSwitch(Current, nextProcess);
+        p1_switch(Current->pid, nextProcess->pid);
+        USLOSS_ContextSwitch(&Current->state, &nextProcess->state);
     }
     Current = nextProcess;
     
@@ -528,19 +528,28 @@ void enableInterrupts()
  * Checks if currently in kernel mode
  */
 void isKernelMode() {
-    psr.integerPart	= USLOSS_PsrGet(); // get the usloss psr
     
-    if (psr.bits.curMode == 0){
+    /*
+    psr->integerPart	= USLOSS_PsrGet(); // get the usloss psr
+    
+    if (psr->bits->curMode == 0){
 		USLOSS_Console("fork1() : process %s is not in kernel mode\n", name);
 		USLOSS_Halt(1);
+        
 	}
+    */
+    
+    if ((USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0) {
+        USLOSS_Console("fork1() : process is not in kernel mode\n");
+		USLOSS_Halt(1);
+    }
 }
 
 /*
  * returns pointer to last node in the given ready table
  */
-struct procPtr getLastProc(struct procPtr head) {
-    struct procPtr cur = head;
+procPtr getLastProc(procPtr head) {
+    procPtr cur = head;
     
     while (cur != NULL) {
         cur = cur->nextProcPtr;
@@ -552,7 +561,7 @@ struct procPtr getLastProc(struct procPtr head) {
 /*
  * gets the correct ready list for the priority given
  */
-struct procPtr getReadyList(int priority) {
+procPtr getReadyList(int priority) {
     if (priority == 1) {
         return pr1;
     } else if (priority == 2) {
@@ -598,13 +607,13 @@ void cleanProc(int pid){
 
 }
 
- * moves a process to the back of its ready list
+/* moves a process to the back of its ready list
  */
-void moveBack(struct procPtr head) {
-    struct procPtr cur = head;
+void moveBack(procPtr head) {
+    procPtr cur = head;
     
-    while (cur != null) {
-        cur = cur->next;
+    while (cur != NULL) {
+        cur = cur->nextProcPtr;
     }
     
     cur = Current;
@@ -615,7 +624,7 @@ void moveBack(struct procPtr head) {
 /*
  * finds and returns the next process
  */
-struct procPtr getNextProc() {
+procPtr getNextProc() {
     if (pr1 != NULL)
         return pr1;
     else if (pr2 != NULL)
