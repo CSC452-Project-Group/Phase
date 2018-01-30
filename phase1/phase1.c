@@ -322,22 +322,24 @@ int join(int *status)
     disableInterrupts();
     
     //TODO:check whether it has children, if no, return -2
-    if(Current->childqueue.size == 0 && Current->deadchildqueue.size == 0){
-	USLOSS_Console("No children in the current process.\n");
-	return -2;
+    if(Current->childProcPtr == NULL && Current->quitChild == NULL){
+        USLOSS_Console("No children in the current process.\n");
+        return -2;
     }
 
     //TODO:check if current has dead child. If no, block itself and wait
-    if(Current->deadchildqueue.size == 0){
+    if(Current->quitChild != NULL){
 	USLOSS_Console("pid %d is blocked beacuse of no dead child.\n", Current->pid);
 	Current->status = BLOCKED;
-	//TODO:remove &ReadyList[(Current->priority - 1)]
+	removeFromReadyList(Current->procSlot)
 	dispatcher();	
     }
 
-    procPtr child = //get first dead child from the queue
+    procPtr child = Current->quitChild //get first dead child from the queue
     int pid = child->pid;
     *status = child->lastProc;
+    
+    Current->quitChild = Current->quitChild->nextQuitSibling;
 
     cleanProc(pid);
 
