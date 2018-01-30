@@ -321,25 +321,32 @@ int join(int *status)
     isKernelMode();
     disableInterrupts();
     
-    // Child process:
-    procPtr child = Current->childProcPtr;
-
-    if(child != NULL){
-        Current->status = BLOCKED;
-        dispatcher();
-        if ( Current -> quitChild != NULL) {
-            *status = Current->quitChild->status;
-            Current->quitChild->status = EMPTY;
-        }
-        else{
-            dispatcher();
-        }
-        enableInterrupts();
-        return Current->quitChild->pid;
+    //TODO:check whether it has children, if no, return -2
+    if(Current->childqueue.size == 0 && Current->deadchildqueue.size == 0){
+	USLOSS_Console("No children in the current process.\n");
+	return -2;
     }
 
+    //TODO:check if current has dead child. If no, block itself and wait
+    if(Current->deadchildqueue.size == 0){
+	USLOSS_Console("pid %d is blocked beacuse of no dead child.\n", Current->pid);
+	Current->status = BLOCKED;
+	//TODO:remove &ReadyList[(Current->priority - 1)]
+	dispatcher();	
+    }
+
+    procPtr child = //get first dead child from the queue
+    int pid = child->pid;
+    *status = child->lastProc;
+
+    cleanProc(pid);
+
+    //check the zapped proc, if any return -1
+    if(Current->zapqueue.size != 0){
+	pid = -1;
+    }
     enableInterrupts();
-    return -1;  // -1 is not correct! Here to prevent warning.
+    return pid;  // -1 is not correct! Here to prevent warning.
 } /* join */
 
 
@@ -683,6 +690,58 @@ procPtr getNextProc() {
 }
 
 /*
+* zap
+* return -1 if zapped process called by itself.
+* return 0 if zapped process has quited.
+*/
+int zap(int pid){
+    
+    isKernelMode();
+    disableInterrupts();
+
+    proPtr proc;
+    if(Current->pid == pid){
+	USLOSS_Console("Zapping...Process is halting...\n");
+	USLOSS_Halt(1);
+    }
+    
+    proc = &ProcTable[pid % MAXPROC];
+    if(proc->status == EMPTY || proc->pid != pid){
+	USLOSS_Console("Zapping...Process is not exist, halting...\n");
+        USLOSS_Halt(1);
+    }
+
+    if(proc->status == QUIT){
+	enableInterrupts();
+	//TODO: We might need a queue for zap here
+	if(Current->zapQueue.size < 0){
+	    return 0;
+	}
+	else{
+	    return -1;
+	}
+    }
+
+    //TODO:Put Current into zap queue
+    Current->status = ZAPPED; 
+    //TODO:Remove &readylist[Current->priority-1]
+    dispatcher();
+
+    enableInterrupts();
+
+    //TODO: zapQueue
+    if (Current->zapQueue.size > 0) {
+        return -1;  
+    }
+    return 0; 
+}
+
+//TODO:Zapqueue
+int isZapped(){
+    isKernelMode();
+    return (Current->zapqueue > 0);
+}
+
  * Inserts a process into a ready list
  */
 void insertIntoReadyList(int slot) {
@@ -744,7 +803,3 @@ void removeFromReadyList(int slot) {
     cur = cur->nextProcPtr;
     ProcTable[slot].nextProcPtr = NULL;
 }
-
-
-
-

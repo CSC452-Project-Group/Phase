@@ -53,3 +53,4 @@ union psrValues {
 #define RUNNING 2
 #define QUIT    4
 #define BLOCKED 5
+#define ZAPPED   6
