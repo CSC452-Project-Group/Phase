@@ -464,19 +464,25 @@ void dispatcher(void)
         nextProcess = pr6;
     
     //nextProcess = getNextProc();
-    USLOSS_Console("Dispatcher() : next proc assigned - %s\n", &nextProcess->name);
+    USLOSS_Console("Dispatcher() : next proc assigned - %d\n", nextProcess->pid);
+    procPtr oldProcess;
     
     if (Current == NULL) {
+        Current = nextProcess;
+        //USLOSS_Console("Dispatcher() : before switch\n");
         p1_switch(-1, nextProcess->pid);
-        USLOSS_Console("Dispatcher() : next proc assigned - %s\n", &nextProcess->name);
+        USLOSS_Console("Dispatcher() : after switch\n");
         enableInterrupts();
-        USLOSS_ContextSwitch(NULL, &nextProcess->state);
+        USLOSS_ContextSwitch(NULL, &(Current->state));
+        USLOSS_Console("Dispatcher() : after contect switch\n");
     } else {
-        p1_switch(Current->pid, nextProcess->pid);
+        oldProcess = Current;
+        Current = nextProcess;
+        p1_switch(oldProcess->pid, Current->pid);
         enableInterrupts();
-        USLOSS_ContextSwitch(&Current->state, &nextProcess->state);
+        USLOSS_ContextSwitch(&(oldProcess->state), &(Current->state));
     }
-    Current = nextProcess;
+    //Current = nextProcess;
     
     //enableInterrupts();
     
@@ -681,34 +687,34 @@ procPtr getNextProc() {
  */
 void insertIntoReadyList(int slot) {
     //USLOSS_Console("insertIntoReadyList() : geting last for readylist %d\n", ProcTable[slot].priority);
-    procPtr cur = NULL;
+    procPtr * cur = NULL;
     
     if (ProcTable[slot].priority == 1) {
-        cur = pr1;
+        cur = &pr1;
     } else if (ProcTable[slot].priority == 2) {
-        cur = pr2;
+        cur = &pr2;
     } else if (ProcTable[slot].priority == 3) {
-        cur = pr3;
+        cur = &pr3;
     } else if (ProcTable[slot].priority == 4) {
-        cur = pr4;
+        cur = &pr4;
     } else if (ProcTable[slot].priority == 5) {
-        cur = pr5;
+        cur = &pr5;
     } else if (ProcTable[slot].priority == 6) {
-        USLOSS_Console("insertIntoReadyList() : priority %d\n", ProcTable[slot].priority);
-        cur = pr6;
+        //USLOSS_Console("insertIntoReadyList() : priority %d\n", ProcTable[slot].priority);
+        cur = &pr6;
     } else {
         cur = NULL;
     }
     
-    while (cur != NULL) {
-        cur = cur->nextProcPtr;
+    while (*cur != NULL) {
+        *cur = (*cur)->nextProcPtr;
     }
     
     //procPtr list = getLastProc(getReadyList(ProcTable[slot].priority));
     //USLOSS_Console("insertIntoReadyList() : after getLastProc()\n");
-    cur = &ProcTable[slot];
+    *cur = &ProcTable[slot];
     
-    USLOSS_Console("InstertIntoReayList() : pr6 pid %d\n", &pr6->pid);
+    //USLOSS_Console("InstertIntoReayList() : pr6 pid %d\n", pr6->pid);
 }
 
 /*
