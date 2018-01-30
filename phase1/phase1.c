@@ -29,6 +29,9 @@ procPtr getNextProc();
 void cleanProc(int);
 void insertIntoReadyList();
 void removeFromReadyList();
+int zap(int);
+int isZapped();
+
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -744,6 +747,7 @@ int isZapped(){
     return (Current->zapqueue > 0);
 }
 
+/*
  * Inserts a process into a ready list
  */
 void insertIntoReadyList(int slot) {
