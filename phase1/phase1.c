@@ -58,6 +58,9 @@ procPtr pr6;
 // current process ID
 procPtr Current;
 
+// zapped process
+procPtr zapProc;
+
 // the next pid to be assigned
 unsigned int nextPid = SENTINELPID;
 
@@ -93,7 +96,7 @@ void startup(int argc, char *argv[])
     pr6 = NULL;
     
     Current = NULL;
-
+    zapProc = NULL;
     // Initialize the clock interrupt handler
 
     // startup a sentinel process
@@ -323,31 +326,50 @@ int join(int *status)
     // test if its in kernel mode; disable Interrupts
     isKernelMode();
     disableInterrupts();
-    
+    procPtr curquit=Current->quitChild;
+    int pid;
+    USLOSS_Console("Checking child process (live and died).\n");
     //TODO:check whether it has children, if no, return -2
     if(Current->childProcPtr == NULL && Current->quitChild == NULL){
         USLOSS_Console("No children in the current process.\n");
+	*status = 0;
         return -2;
     }
 
     //TODO:check if current has dead child. If no, block itself and wait
-    if(Current->quitChild != NULL){
+    if(Current->quitChild == NULL){
 	USLOSS_Console("pid %d is blocked beacuse of no dead child.\n", Current->pid);
 	Current->status = BLOCKED;
-	removeFromReadyList(Current->procSlot)
-	dispatcher();	
+	dispatcher();
+	disableInterrupts();
+	//removeFromReadyList(Current->procSlot);
+	curquit = Current->quitChild;
+	Current->quitChild = curquit->nextProcPtr;
+	*status = curquit->lastProc;
+	pid = curquit->pid;
+	curquit->pid = -1;
+	curquit->lastProc = 0;
+	curquit->status = EMPTY;
+	//dispatcher();	
+    }
+    else{
+	Current->quitChild = curquit->nextProcPtr;
+	cleanProc(Current->quitChild->pid);
+	procPtr child = Current->quitChild; //get first dead child from the queue
+        pid = child->pid;
+        *status = child->lastProc;
     }
 
-    procPtr child = Current->quitChild //get first dead child from the queue
-    int pid = child->pid;
+    /*procPtr child = Current->quitChild; //get first dead child from the queue
+    pid = child->pid;
     *status = child->lastProc;
-    
-    Current->quitChild = Current->quitChild->nextQuitSibling;
+    */
+    //Current->quitChild = Current->quitChild->nextQuitSibling;
 
-    cleanProc(pid);
+    //cleanProc(pid);
 
     //check the zapped proc, if any return -1
-    if(Current->zapqueue.size != 0){
+    if(Current->zapProc != NULL){
 	pid = -1;
     }
     enableInterrupts();
@@ -704,7 +726,7 @@ int zap(int pid){
     isKernelMode();
     disableInterrupts();
 
-    proPtr proc;
+    procPtr proc;
     if(Current->pid == pid){
         USLOSS_Console("zap() : process is zapping self\n");
         USLOSS_Halt(1);
@@ -719,7 +741,7 @@ int zap(int pid){
     if(proc->status == QUIT){
         enableInterrupts();
         //TODO: We might need a queue for zap here
-        if(Current->zapQueue.size < 0){
+        if(Current->zapProc == NULL){
             return 0;
         }
         else{
@@ -735,7 +757,7 @@ int zap(int pid){
     enableInterrupts();
 
     //TODO: zapQueue
-    if (Current->zapQueue.size > 0) {
+    if (Current->zapProc != NULL) {
         return -1;  
     }
     return 0; 
@@ -744,7 +766,7 @@ int zap(int pid){
 //TODO:Zapqueue
 int isZapped(){
     isKernelMode();
-    return (Current->zapqueue > 0);
+    return (Current->zapProc != NULL);
 }
 
 /*

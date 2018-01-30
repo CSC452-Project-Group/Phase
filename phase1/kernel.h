@@ -24,7 +24,7 @@ struct procStruct {
    procPtr         quitChild;
    procPtr         nextQuitSibling;
    int             procSlot;
-   
+   procPtr         zapProc;   
    
 };
 
