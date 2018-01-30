@@ -23,6 +23,7 @@ struct procStruct {
    int             lastProc;
    procPtr         quitChild;
    procPtr         nextQuitSibling;
+   int             procSlot;
    
    
 };
@@ -45,7 +46,7 @@ union psrValues {
 #define MINPRIORITY 5
 #define MAXPRIORITY 1
 #define SENTINELPID 1
-#define SENTINELPRIORITY (MINPRIORITY + 1)
+#define SENTINELPRIORITY 6
 
 #define EMPTY   0
 #define READY   1

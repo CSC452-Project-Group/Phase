@@ -27,6 +27,8 @@ procPtr getReadyList(int);
 void moveBack(procPtr);
 procPtr getNextProc();
 void cleanProc(int);
+void insertIntoReadyList();
+void removeFromReadyList();
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -94,6 +96,7 @@ void startup(int argc, char *argv[])
     // startup a sentinel process
     if (DEBUG && debugflag)
         USLOSS_Console("startup(): calling fork1() for sentinel\n");
+    //USLOSS_Console("startup(): calling fork1() for sentinel with priority %d\n", SENTINELPRIORITY);
     result = fork1("sentinel", sentinel, NULL, USLOSS_MIN_STACK,
                     SENTINELPRIORITY);
     if (result < 0) {
@@ -152,7 +155,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     unsigned int pid = 0;
 
     if (DEBUG && debugflag)
-        USLOSS_Console("fork1(): creating process %s\n", name);
+        USLOSS_Console("fork1() : creating process %s\n", name);
     
     // test if in kernel mode; halt if in user mode
 	isKernelMode();
@@ -165,10 +168,16 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 	}
 	
     // Return if priority is wrong
-	if(priority < MAXPRIORITY || priority > MINPRIORITY){
+    if(procNum == 0) {
+        //USLOSS_Console("fork1() : process %d for sentinel\n", priority);
+    }
+	else if(priority < MAXPRIORITY || priority > MINPRIORITY){
 		USLOSS_Console("fork1() : priority for process %s is wrong\n", name);
 		return -1;	
 	}
+    else {
+        //USLOSS_Console("fork1() : next priority is %d\n", priority);
+    }
 
     // Return if name startFunc is NULL
 	if(name == NULL){
@@ -200,7 +209,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
       }
     }
 
-    USLOSS_Console("fork1(): New PID is %d\n", procSlot);
+    //USLOSS_Console("fork1(): New PID is %d\n", procSlot);
     //No room in the process table, return
     if(procSlot == -1){
       USLOSS_Console("fork1() : No room for process %s\n", name);
@@ -214,6 +223,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     }
     strcpy(ProcTable[procSlot].name, name);
     ProcTable[procSlot].startFunc = startFunc;
+    //USLOSS_Console("fork1() : assigned name %s\n", ProcTable[procSlot].name);
     if ( arg == NULL )
         ProcTable[procSlot].startArg[0] = '\0';
     else if ( strlen(arg) >= (MAXARG - 1) ) {
@@ -228,11 +238,14 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         ProcTable[procSlot].nextSiblingPtr = NULL;
         ProcTable[procSlot].pid = pid;
         ProcTable[procSlot].priority = priority;
+        ProcTable[procSlot].procSlot = procSlot;
+        //USLOSS_Console("fork1() : assigned priority %d\n", ProcTable[procSlot].priority);
         ProcTable[procSlot].stack = malloc(stacksize);
     	if (ProcTable[procSlot].stack == NULL) {
         	USLOSS_Console("fork1() : not enough memory for process %s stack\n");
 		USLOSS_Halt(1);
     	}	
+        //USLOSS_Console("for1() : setting stack\n");
         ProcTable[procSlot].stackSize = stacksize;
         ProcTable[procSlot].status = READY;
 	
@@ -249,7 +262,9 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     // for future phase(s)
     p1_fork(ProcTable[procSlot].pid);
 
-    getLastProc(getReadyList(priority)) = ProcTable[procSlot]; 
+    //USLOSS_Console("fork1() : before readylist insertion\n");
+    insertIntoReadyList(procSlot);
+    USLOSS_Console("fork1() : after readylist insertion\n");
 
     if (priority != 6) {
         dispatcher();
@@ -356,7 +371,7 @@ void quit(int status)
     //change current status and store last status
     Current->status = QUIT;
     Current->lastProc = status;
-    getReadyList(Current->priority) = getReadyList(Current->priority)->nextProcPtr;
+    removeFromReadyList(Current->procSlot);
 
     procPtr cur;
     
@@ -386,7 +401,7 @@ void quit(int status)
         //Unblock parent
         if(Current->parentProcPtr->status == BLOCKED){
 	    Current->parentProcPtr->status = READY;
-	    getLastProc(getReadyList(Current->parentProcPtr->priority)) = Current->parentProcPtr;
+	    insertIntoReadyList(Current->parentProcPtr->procSlot);
         }
     }
 
@@ -431,27 +446,52 @@ void dispatcher(void)
     procPtr nextProcess = NULL;
     
     //Check if current is still running, move to the back of the ready list
-    if(Current->status == RUNNING) {
+    if(Current == NULL) {
+        USLOSS_Console("Dispatcher() : starting start1()\n");
+    }
+    else if(Current->status == RUNNING) {
         Current->status = READY;
         moveBack(getReadyList(Current->priority));
     }
-    
-    if(Current->status == BLOCKED) {
-        getReadyList(Current->priority) = getReadyList(Current->priority)->nextProcPtr;
+    else if(Current->status == BLOCKED) {
+        removeFromReadyList(Current->procSlot);
     }
     
-    nextProcess = getNextProc();
+    if (pr1 != NULL)
+        nextProcess = pr1;
+    else if (pr2 != NULL)
+        nextProcess = pr2;
+    else if (pr3 != NULL)
+        nextProcess = pr3;
+    else if (pr4 != NULL)
+        nextProcess = pr4;
+    else if (pr5 != NULL)
+        nextProcess = pr5;
+    else 
+        nextProcess = pr6;
+    
+    //nextProcess = getNextProc();
+    USLOSS_Console("Dispatcher() : next proc assigned - %d\n", nextProcess->pid);
+    procPtr oldProcess;
     
     if (Current == NULL) {
+        Current = nextProcess;
+        //USLOSS_Console("Dispatcher() : before switch\n");
         p1_switch(-1, nextProcess->pid);
-        USLOSS_ContextSwitch(NULL, &nextProcess->state);
+        USLOSS_Console("Dispatcher() : after switch\n");
+        enableInterrupts();
+        USLOSS_ContextSwitch(NULL, &(Current->state));
+        USLOSS_Console("Dispatcher() : after contect switch\n");
     } else {
-        p1_switch(Current->pid, nextProcess->pid);
-        USLOSS_ContextSwitch(&Current->state, &nextProcess->state);
+        oldProcess = Current;
+        Current = nextProcess;
+        p1_switch(oldProcess->pid, Current->pid);
+        enableInterrupts();
+        USLOSS_ContextSwitch(&(oldProcess->state), &(Current->state));
     }
-    Current = nextProcess;
+    //Current = nextProcess;
     
-    enableInterrupts();
+    //enableInterrupts();
     
 } /* dispatcher */
 
@@ -558,7 +598,8 @@ void isKernelMode() {
 procPtr getLastProc(procPtr head) {
     procPtr cur = head;
     
-    while (cur != NULL) {
+    USLOSS_Console("getLastProc() : getting last in table %d\n", cur->priority);
+    while (cur->nextProcPtr != NULL) {
         cur = cur->nextProcPtr;
     }
     
@@ -569,6 +610,7 @@ procPtr getLastProc(procPtr head) {
  * gets the correct ready list for the priority given
  */
 procPtr getReadyList(int priority) {
+    USLOSS_Console("getReadyList() : getting readylist %d\n", priority);
     if (priority == 1) {
         return pr1;
     } else if (priority == 2) {
@@ -580,6 +622,7 @@ procPtr getReadyList(int priority) {
     } else if (priority == 5) {
         return pr5;
     } else if (priority == 6) {
+        USLOSS_Console("getReadyList() : returning readylist 6\n");
         return pr6;
     } else {
         return NULL;
@@ -697,4 +740,66 @@ int zap(int pid){
 int isZapped(){
     isKernelMode();
     return (Current->zapqueue > 0);
+}
+
+ * Inserts a process into a ready list
+ */
+void insertIntoReadyList(int slot) {
+    //USLOSS_Console("insertIntoReadyList() : geting last for readylist %d\n", ProcTable[slot].priority);
+    procPtr * cur = NULL;
+    
+    if (ProcTable[slot].priority == 1) {
+        cur = &pr1;
+    } else if (ProcTable[slot].priority == 2) {
+        cur = &pr2;
+    } else if (ProcTable[slot].priority == 3) {
+        cur = &pr3;
+    } else if (ProcTable[slot].priority == 4) {
+        cur = &pr4;
+    } else if (ProcTable[slot].priority == 5) {
+        cur = &pr5;
+    } else if (ProcTable[slot].priority == 6) {
+        //USLOSS_Console("insertIntoReadyList() : priority %d\n", ProcTable[slot].priority);
+        cur = &pr6;
+    } else {
+        cur = NULL;
+    }
+    
+    while (*cur != NULL) {
+        *cur = (*cur)->nextProcPtr;
+    }
+    
+    //procPtr list = getLastProc(getReadyList(ProcTable[slot].priority));
+    //USLOSS_Console("insertIntoReadyList() : after getLastProc()\n");
+    *cur = &ProcTable[slot];
+    
+    //USLOSS_Console("InstertIntoReayList() : pr6 pid %d\n", pr6->pid);
+}
+
+/*
+ * Removes a process from a ready list and moves the next forward
+ */
+void removeFromReadyList(int slot) {
+    //procPtr list = getReadyList(ProcTable[slot].priority);
+    
+    procPtr cur = NULL;
+    
+    if (ProcTable[slot].priority == 1) {
+        cur = pr1;
+    } else if (ProcTable[slot].priority == 2) {
+        cur = pr2;
+    } else if (ProcTable[slot].priority == 3) {
+        cur = pr3;
+    } else if (ProcTable[slot].priority == 4) {
+        cur = pr4;
+    } else if (ProcTable[slot].priority == 5) {
+        cur = pr5;
+    } else if (ProcTable[slot].priority == 6) {
+        cur = pr6;
+    } else {
+        cur = NULL;
+    }
+    
+    cur = cur->nextProcPtr;
+    ProcTable[slot].nextProcPtr = NULL;
 }
