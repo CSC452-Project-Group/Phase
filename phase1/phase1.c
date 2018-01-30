@@ -701,30 +701,30 @@ int zap(int pid){
 
     proPtr proc;
     if(Current->pid == pid){
-	USLOSS_Console("Zapping...Process is halting...\n");
-	USLOSS_Halt(1);
+        USLOSS_Console("zap() : process is zapping self\n");
+        USLOSS_Halt(1);
     }
     
     proc = &ProcTable[pid % MAXPROC];
     if(proc->status == EMPTY || proc->pid != pid){
-	USLOSS_Console("Zapping...Process is not exist, halting...\n");
+        USLOSS_Console("zap() : no process to zap with this pid %d\n", pid);
         USLOSS_Halt(1);
     }
 
     if(proc->status == QUIT){
-	enableInterrupts();
-	//TODO: We might need a queue for zap here
-	if(Current->zapQueue.size < 0){
-	    return 0;
-	}
-	else{
-	    return -1;
-	}
+        enableInterrupts();
+        //TODO: We might need a queue for zap here
+        if(Current->zapQueue.size < 0){
+            return 0;
+        }
+        else{
+            return -1;
+        }
     }
 
     //TODO:Put Current into zap queue
     Current->status = ZAPPED; 
-    //TODO:Remove &readylist[Current->priority-1]
+    removeFromReadyList(proc);
     dispatcher();
 
     enableInterrupts();
