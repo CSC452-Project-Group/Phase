@@ -306,25 +306,32 @@ int join(int *status)
     isKernelMode();
     disableInterrupts();
     
-    // Child process:
-    procPtr child = Current->childProcPtr;
-
-    if(child != NULL){
-        Current->status = BLOCKED;
-        dispatcher();
-        if ( Current -> quitChild != NULL) {
-            *status = Current->quitChild->status;
-            Current->quitChild->status = EMPTY;
-        }
-        else{
-            dispatcher();
-        }
-        enableInterrupts();
-        return Current->quitChild->pid;
+    //TODO:check whether it has children, if no, return -2
+    if(Current->childqueue.size == 0 && Current->deadchildqueue.size == 0){
+	USLOSS_Console("No children in the current process.\n");
+	return -2;
     }
 
+    //TODO:check if current has dead child. If no, block itself and wait
+    if(Current->deadchildqueue.size == 0){
+	USLOSS_Console("pid %d is blocked beacuse of no dead child.\n", Current->pid);
+	Current->status = BLOCKED;
+	//TODO:remove &ReadyList[(Current->priority - 1)]
+	dispatcher();	
+    }
+
+    procPtr child = //get first dead child from the queue
+    int pid = child->pid;
+    *status = child->lastProc;
+
+    cleanProc(pid);
+
+    //check the zapped proc, if any return -1
+    if(Current->zapqueue.size != 0){
+	pid = -1;
+    }
     enableInterrupts();
-    return -1;  // -1 is not correct! Here to prevent warning.
+    return pid;  // -1 is not correct! Here to prevent warning.
 } /* join */
 
 
