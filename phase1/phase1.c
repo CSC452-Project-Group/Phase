@@ -31,7 +31,7 @@ void insertIntoReadyList();
 void removeFromReadyList();
 int zap(int);
 int isZapped();
-
+void clockHandler(int, void);
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -500,6 +500,14 @@ void dispatcher(void)
     //nextProcess = getNextProc();
     USLOSS_Console("Dispatcher() : next proc assigned - %d\n", nextProcess->pid);
     procPtr oldProcess;
+
+    if(oldProcess != Current){
+	if(oldProcess->pid > -1){
+	    old->totalTime += USLOSS_Clock() - old->startTime;
+	}
+	Current->sliceTime = 0;
+	Current->startTime = USLOSS_Clock();
+    }
     
     if (Current == NULL) {
         Current = nextProcess;
@@ -677,7 +685,15 @@ void cleanProc(int pid){
     free(ProcTable[i].stack);
     ProcTable[i].stack = NULL;
     ProcTable[i].stackSize = -1;
-    ProcTable[i].status = EMPTY;        /* READY, BLOCKED, QUIT, etc. */
+    ProcTable[i].startTime = -1;        /* READY, BLOCKED, QUIT, etc. */
+    ProcTable[i].totalTime = -1;
+    ProcTable[i].sliceTime = 0;
+    ProcTable[i].status = EMPTY;
+    ProcTable[i].parentProcPtr = NULL;
+    ProcTable[i].lastProc = 0;
+    ProcTable[i].quitChild = NULL;
+    ProcTable[i].nextQuitSibling = NULL;
+    ProcTable[i].zapProc = NULL;
 
     procNum--;
     enableInterrupts();
@@ -830,4 +846,23 @@ void removeFromReadyList(int slot) {
     
     cur = cur->nextProcPtr;
     ProcTable[slot].nextProcPtr = NULL;
+}
+
+void clockHandler(int dev, void *arg){
+    static int count = 0;
+    count++;
+    USLOSS_Console("Call clockhandler for: %d times\n", count);
+
+    isKernelMode();
+    disableInterrupts();
+   
+    Current->sliceTime = USLOSS_Clock() - Current->startTime;
+    if(Current->sliceTime > TIMESLICE){ //Over 80000
+	USLOSS_Console("clockHandler(): time slicing\n");
+	Current->sliceTime = 0;
+	dispatcher();
+    }
+    else{
+	enableInterrupts();
+    }
 }

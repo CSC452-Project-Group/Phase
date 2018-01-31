@@ -25,7 +25,9 @@ struct procStruct {
    procPtr         nextQuitSibling;
    int             procSlot;
    procPtr         zapProc;   
-   
+   int             startTime; //the time when current time slice started
+   int             totalTime; //the time of the process has been running
+   int             sliceTime; //the time of how long the process has be in this time slice
 };
 
 struct psrBits {
@@ -47,6 +49,7 @@ union psrValues {
 #define MAXPRIORITY 1
 #define SENTINELPID 1
 #define SENTINELPRIORITY 6
+#define TIMESLICE    80000
 
 #define EMPTY   0
 #define READY   1
