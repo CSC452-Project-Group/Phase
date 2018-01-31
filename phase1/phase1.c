@@ -31,7 +31,7 @@ void insertIntoReadyList();
 void removeFromReadyList();
 int zap(int);
 int isZapped();
-void clockHandler(int, void);
+void clock_handler(int, void*);
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -76,6 +76,7 @@ unsigned int nextPid = SENTINELPID;
    ----------------------------------------------------------------------- */
 void startup(int argc, char *argv[])
 {
+    isKernelMode();
     int result; /* value returned by call to fork1() */
 
     /* initialize the process table */
@@ -84,6 +85,11 @@ void startup(int argc, char *argv[])
 
     // Initizlize the process number
     procNum = 0;
+
+    Current = &ProcTable[MAXPROC-1];
+
+    // Initialize the clock handler
+    USLOSS_IntVec[USLOSS_CLOCK_INT] = clock_handler;
 
     // Initialize the Ready list, etc.
     if (DEBUG && debugflag)
@@ -95,7 +101,7 @@ void startup(int argc, char *argv[])
     pr5 = NULL;
     pr6 = NULL;
     
-    Current = NULL;
+    //Current = NULL;
     zapProc = NULL;
     // Initialize the clock interrupt handler
 
@@ -138,6 +144,7 @@ void startup(int argc, char *argv[])
    ----------------------------------------------------------------------- */
 void finish(int argc, char *argv[])
 {
+    isKernelMode();
     if (DEBUG && debugflag)
         USLOSS_Console("in finish...\n");
 } /* finish */
@@ -472,6 +479,7 @@ void dispatcher(void)
     
     procPtr nextProcess = NULL;
     
+    Current->startTime = procTime();  
     //Check if current is still running, move to the back of the ready list
     if(Current == NULL) {
         USLOSS_Console("Dispatcher() : starting start1()\n");
@@ -499,16 +507,16 @@ void dispatcher(void)
     
     //nextProcess = getNextProc();
     USLOSS_Console("Dispatcher() : next proc assigned - %d\n", nextProcess->pid);
-    procPtr oldProcess;
-
+    procPtr oldProcess = NULL;
+/*
     if(oldProcess != Current){
 	if(oldProcess->pid > -1){
-	    old->totalTime += USLOSS_Clock() - old->startTime;
+	    oldProcess->totalTime += USLOSS_Clock() - oldProcess->startTime;
 	}
 	Current->sliceTime = 0;
 	Current->startTime = USLOSS_Clock();
     }
-    
+*/    
     if (Current == NULL) {
         Current = nextProcess;
         //USLOSS_Console("Dispatcher() : before switch\n");
@@ -520,6 +528,7 @@ void dispatcher(void)
     } else {
         oldProcess = Current;
         Current = nextProcess;
+        oldProcess->totalTime += oldProcess->totalTime == -1 ? procTime() - oldProcess->startTime + 1 : procTime() - oldProcess->startTime;
         p1_switch(oldProcess->pid, Current->pid);
         enableInterrupts();
         USLOSS_ContextSwitch(&(oldProcess->state), &(Current->state));
@@ -848,7 +857,7 @@ void removeFromReadyList(int slot) {
     ProcTable[slot].nextProcPtr = NULL;
 }
 
-void clockHandler(int dev, void *arg){
+void clock_handler(int dev, void *arg){
     static int count = 0;
     count++;
     USLOSS_Console("Call clockhandler for: %d times\n", count);
@@ -856,13 +865,30 @@ void clockHandler(int dev, void *arg){
     isKernelMode();
     disableInterrupts();
    
-    Current->sliceTime = USLOSS_Clock() - Current->startTime;
-    if(Current->sliceTime > TIMESLICE){ //Over 80000
+    if(procTime() - Current->sliceTime >= TIMESLICE){ //Over 80000
 	USLOSS_Console("clockHandler(): time slicing\n");
-	Current->sliceTime = 0;
+	//Current->sliceTime = 0;
 	dispatcher();
     }
     else{
 	enableInterrupts();
     }
 }
+
+int procTime(void){
+    isKernelMode();
+    int status = 0;
+    int out = USLOSS_DeviceInput(USLOSS_CLOCK_DEV, 0, &status);
+
+    if(out != USLOSS_DEV_OK){
+	USLOSS_Console("clock_handler(): failing, halting......");
+	USLOSS_Halt(1);
+    }
+
+    return status;
+}
+
+
+
+
+
