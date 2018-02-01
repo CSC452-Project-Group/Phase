@@ -32,6 +32,8 @@ void removeFromReadyList(procPtr);
 int zap(int);
 int isZapped();
 void clock_handler(int, void*);
+void dumpProcesses();
+int procTime();
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -371,9 +373,8 @@ int join(int *status)
     //USLOSS_Console("join() : process %d has dead children\n", Current->pid);
     *status = Current->quitChild->lastProc;
     pid = Current->quitChild->pid;
-    procPtr temp = Current->quitChild->nextQuitSibling;
+    Current->quitChild = Current->quitChild->nextQuitSibling;
     cleanProc(pid);
-    Current->quitChild = temp;
 
     //check the zapped proc, if any return -1
     if(Current->zapProc != NULL){
@@ -428,10 +429,11 @@ void quit(int status)
             Current->parentProcPtr->quitChild = Current;
         } else {
             cur = Current->parentProcPtr->quitChild;
-            while (cur != NULL) {
+            while (cur->nextQuitSibling != NULL) {
                 cur = cur->nextQuitSibling;
             }
-            cur = Current;
+            //USLOSS_Console("quit() : Child enters the dead queue for %d\n", Current->parentProcPtr->pid);
+            cur->nextQuitSibling = Current;
         }
         
         //USLOSS_Console("quit() : Parents first dead child %d\n", Current->parentProcPtr->quitChild->pid);
@@ -486,11 +488,13 @@ void dispatcher(void)
     
     procPtr nextProcess = NULL;
     
+    //dumpProcesses();
+    
     
     //Check if current is still running, move to the back of the ready list
     if(Current == NULL) {
         //USLOSS_Console("Dispatcher() : starting start1()\n");
-        Current = &(ProcTable[1]);
+        //Current = &(ProcTable[1]);
     }
     else if(Current->status == RUNNING) {
         Current->status = READY;
@@ -500,7 +504,7 @@ void dispatcher(void)
         removeFromReadyList(Current);
     }
     
-    Current->startTime = procTime();  
+     
     
     if (pr1 != NULL)
         nextProcess = pr1;
@@ -512,29 +516,22 @@ void dispatcher(void)
         nextProcess = pr4;
     else if (pr5 != NULL)
         nextProcess = pr5;
-    else 
+    else {
         nextProcess = pr6;
-    
-    //nextProcess = getNextProc();
-    //USLOSS_Console("Dispatcher() : next proc assigned - %d\n", nextProcess->pid);
-    procPtr oldProcess = NULL;
-/*
-    if(oldProcess != Current){
-	if(oldProcess->pid > -1){
-	    oldProcess->totalTime += USLOSS_Clock() - oldProcess->startTime;
-	}
-	Current->sliceTime = 0;
-	Current->startTime = USLOSS_Clock();
+        //USLOSS_Console("Dispatcher() : get the sentinel to run\n");
     }
-*/    
+    
+    procPtr oldProcess = NULL;
+    
     if (Current == NULL) {
+        Current = &(ProcTable[1]);
         Current = nextProcess;
         //USLOSS_Console("Dispatcher() : before switch\n");
         p1_switch(-1, nextProcess->pid);
-        USLOSS_Console("Dispatcher() : after switch\n");
+        //USLOSS_Console("Dispatcher() : after switch\n");
         enableInterrupts();
         USLOSS_ContextSwitch(NULL, &(Current->state));
-        USLOSS_Console("Dispatcher() : after contect switch\n");
+        //USLOSS_Console("Dispatcher() : after contect switch\n");
     } else {
         oldProcess = Current;
         Current = nextProcess;
@@ -543,6 +540,8 @@ void dispatcher(void)
         enableInterrupts();
         USLOSS_ContextSwitch(&(oldProcess->state), &(Current->state));
     }
+    
+    Current->startTime = procTime(); 
     //Current = nextProcess;
     
     //enableInterrupts();
@@ -567,6 +566,7 @@ int sentinel (char *dummy)
         USLOSS_Console("sentinel(): called\n");
     while (1)
     {
+        //USLOSS_Console("Sentinel() : here I am\n");
         checkDeadlock();
         USLOSS_WaitInt();
     }
@@ -581,7 +581,7 @@ static void checkDeadlock()
         USLOSS_Halt(1);
     }
     else{
-        USLOSS_Console("No processes left!\n");
+        USLOSS_Console("All processes completed.\n");
 	USLOSS_Halt(0);
     }
 } /* checkDeadlock */
@@ -688,7 +688,7 @@ procPtr getReadyList(int priority) {
 * CLean out the process
 */
 void cleanProc(int pid){
-    USLOSS_Console("cleanProc() : cleaning proc %d\n", pid);
+    //USLOSS_Console("cleanProc() : cleaning proc %d\n", pid);
     isKernelMode();
     disableInterrupts();
 
@@ -700,7 +700,7 @@ void cleanProc(int pid){
     ProcTable[i].nextSiblingPtr = NULL;
     ProcTable[i].name[0] = 0;     /* process's name */
     ProcTable[i].startArg[0] = 0;  /* args passed to process */
-    ProcTable[i].pid = -1;               /* process id */
+    //ProcTable[i].pid = -1;               /* process id */
     ProcTable[i].priority = -1;
     ProcTable[i].startFunc = NULL;   /* function where process begins -- launch */
     //free(ProcTable[i].stack);
@@ -716,7 +716,7 @@ void cleanProc(int pid){
     ProcTable[i].nextQuitSibling = NULL;
     ProcTable[i].zapProc = NULL;
 
-    USLOSS_Console("cleanProc() : before decrementation of procNum\n");
+    //USLOSS_Console("cleanProc() : before decrementation of procNum\n");
     procNum--;
     enableInterrupts();
 
@@ -899,6 +899,52 @@ int procTime(void){
     }
 
     return status;
+}
+
+void dumpProcesses() {
+    procPtr cur;
+    if (pr1 != NULL) {
+        cur = pr1;
+        while (cur != NULL) {
+            USLOSS_Console("---------->DumpProcesses() : Priority 1 pid: %d\n", cur->pid);
+            cur = cur->nextProcPtr;
+        }
+    }
+    if (pr2 != NULL) {
+        cur = pr2;
+        while (cur != NULL) {
+            USLOSS_Console("---------->DumpProcesses() : Priority 2 pid: %d\n", cur->pid);
+            cur = cur->nextProcPtr;
+        }
+    }
+    if (pr3 != NULL) {
+        cur = pr3;
+        while (cur != NULL) {
+            USLOSS_Console("---------->DumpProcesses() : Priority 3 pid: %d\n", cur->pid);
+            cur = cur->nextProcPtr;
+        }
+    }
+    if (pr4 != NULL) {
+        cur = pr4;
+        while (cur != NULL) {
+            USLOSS_Console("---------->DumpProcesses() : Priority 4 pid: %d\n", cur->pid);
+            cur = cur->nextProcPtr;
+        }
+    }
+    if (pr5 != NULL) {
+        cur = pr5;
+        while (cur != NULL) {
+            USLOSS_Console("---------->DumpProcesses() : Priority 5 pid: %d\n", cur->pid);
+            cur = cur->nextProcPtr;
+        }
+    }
+    if (pr6 != NULL) {
+        cur = pr6;
+        while (cur != NULL) {
+            USLOSS_Console("---------->DumpProcesses() : Priority 6 pid: %d\n", cur->pid);
+            cur = cur->nextProcPtr;
+        }
+    }
 }
 
 
