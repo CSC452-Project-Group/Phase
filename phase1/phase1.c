@@ -27,8 +27,8 @@ procPtr getReadyList(int);
 void moveBack(procPtr);
 procPtr getNextProc();
 void cleanProc(int);
-void insertIntoReadyList();
-void removeFromReadyList();
+void insertIntoReadyList(procPtr);
+void removeFromReadyList(procPtr);
 int zap(int);
 int isZapped();
 void clock_handler(int, void*);
@@ -86,8 +86,6 @@ void startup(int argc, char *argv[])
     // Initizlize the process number
     procNum = 0;
 
-    Current = &ProcTable[MAXPROC-1];
-
     // Initialize the clock handler
     USLOSS_IntVec[USLOSS_CLOCK_INT] = clock_handler;
 
@@ -100,6 +98,8 @@ void startup(int argc, char *argv[])
     pr4 = NULL;
     pr5 = NULL;
     pr6 = NULL;
+    
+    Current = NULL;
     
     //Current = NULL;
     zapProc = NULL;
@@ -261,6 +261,23 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         //USLOSS_Console("for1() : setting stack\n");
         ProcTable[procSlot].stackSize = stacksize;
         ProcTable[procSlot].status = READY;
+        ProcTable[procSlot].quitChild = NULL;
+        ProcTable[procSlot].nextQuitSibling = NULL;
+        
+        if (Current == NULL) {
+            ProcTable[procSlot].parentProcPtr = NULL;
+        }
+        else {
+            ProcTable[procSlot].parentProcPtr = &(*Current);
+            if (Current->childProcPtr == NULL) {
+                Current->childProcPtr = &(ProcTable[procSlot]);
+            }
+            else {
+                ProcTable[procSlot].nextSiblingPtr = Current->childProcPtr;
+                Current->childProcPtr = &(ProcTable[procSlot]);
+            }
+        }
+        
 	
     // Initialize context for this process, but use launch function pointer for
     // the initial value of the process's program counter (PC)
@@ -276,10 +293,11 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     p1_fork(ProcTable[procSlot].pid);
 
     //USLOSS_Console("fork1() : before readylist insertion\n");
-    insertIntoReadyList(procSlot);
-    USLOSS_Console("fork1() : after readylist insertion\n");
+    insertIntoReadyList(&ProcTable[procSlot]);
+    //USLOSS_Console("fork1() : after readylist insertion\n");
 
     if (priority != 6) {
+        //USLOSS_Console("fork1() : call to dispatcher\n");
         dispatcher();
     }
 
@@ -333,47 +351,29 @@ int join(int *status)
     // test if its in kernel mode; disable Interrupts
     isKernelMode();
     disableInterrupts();
-    procPtr curquit=Current->quitChild;
     int pid;
-    USLOSS_Console("Checking child process (live and died).\n");
+    //USLOSS_Console("Join() : Checking child process (live and died).\n");
     //TODO:check whether it has children, if no, return -2
     if(Current->childProcPtr == NULL && Current->quitChild == NULL){
-        USLOSS_Console("No children in the current process.\n");
+        //USLOSS_Console("Join() : No children in the current process.\n");
 	*status = 0;
         return -2;
     }
 
     //TODO:check if current has dead child. If no, block itself and wait
     if(Current->quitChild == NULL){
-	USLOSS_Console("pid %d is blocked beacuse of no dead child.\n", Current->pid);
-	Current->status = BLOCKED;
-	dispatcher();
-	disableInterrupts();
-	//removeFromReadyList(Current->procSlot);
-	curquit = Current->quitChild;
-	Current->quitChild = curquit->nextProcPtr;
-	*status = curquit->lastProc;
-	pid = curquit->pid;
-	curquit->pid = -1;
-	curquit->lastProc = 0;
-	curquit->status = EMPTY;
-	//dispatcher();	
+        //USLOSS_Console("Join() : pid %d is blocked beacuse of no dead child.\n", Current->pid);
+        Current->status = BLOCKED;
+        enableInterrupts();
+        dispatcher();
     }
-    else{
-	Current->quitChild = curquit->nextProcPtr;
-	cleanProc(Current->quitChild->pid);
-	procPtr child = Current->quitChild; //get first dead child from the queue
-        pid = child->pid;
-        *status = child->lastProc;
-    }
-
-    /*procPtr child = Current->quitChild; //get first dead child from the queue
-    pid = child->pid;
-    *status = child->lastProc;
-    */
-    //Current->quitChild = Current->quitChild->nextQuitSibling;
-
-    //cleanProc(pid);
+    
+    //USLOSS_Console("join() : process %d has dead children\n", Current->pid);
+    *status = Current->quitChild->lastProc;
+    pid = Current->quitChild->pid;
+    procPtr temp = Current->quitChild->nextQuitSibling;
+    cleanProc(pid);
+    Current->quitChild = temp;
 
     //check the zapped proc, if any return -1
     if(Current->zapProc != NULL){
@@ -405,23 +405,26 @@ void quit(int status)
     //change current status and store last status
     Current->status = QUIT;
     Current->lastProc = status;
-    removeFromReadyList(Current->procSlot);
+    removeFromReadyList(Current);
 
     procPtr cur;
     
     if(Current->parentProcPtr != NULL){
         cur = Current->parentProcPtr->childProcPtr;
-        
-        if (cur == Current) {
+        //USLOSS_Console("quit() : Current: %d, cur: %d\n", Current->pid, cur->pid);
+        if (cur->pid == Current->pid) {
             cur->parentProcPtr->childProcPtr = cur->nextSiblingPtr;
         } else {
-            while (cur->nextSiblingPtr != Current) {
+            while (cur->nextSiblingPtr->pid != Current->pid) {
                 cur = cur->nextSiblingPtr;
             }
             cur->nextSiblingPtr = cur->nextSiblingPtr->nextSiblingPtr;
         }
         
         if (Current->parentProcPtr->quitChild == NULL) {
+            //USLOSS_Console("quit() : child should enter here\n");
+            //USLOSS_Console("quit() : parent pid: %d\n", Current->parentProcPtr->pid);
+            
             Current->parentProcPtr->quitChild = Current;
         } else {
             cur = Current->parentProcPtr->quitChild;
@@ -431,25 +434,29 @@ void quit(int status)
             cur = Current;
         }
         
-
+        //USLOSS_Console("quit() : Parents first dead child %d\n", Current->parentProcPtr->quitChild->pid);
         //Unblock parent
         if(Current->parentProcPtr->status == BLOCKED){
-	    Current->parentProcPtr->status = READY;
-	    insertIntoReadyList(Current->parentProcPtr->procSlot);
+            Current->parentProcPtr->status = READY;
+            insertIntoReadyList(Current->parentProcPtr);
         }
     }
 
     procPtr child = Current->quitChild;
     //remove dead children
+    //USLOSS_Console("Quit() : %d\n", Current->childProcPtr->pid);
     while(child != NULL){
+        USLOSS_Console("Quit() : quitChild for parent %d is %d\n", Current->pid, child->pid);
         procPtr nextChild = child->nextQuitSibling;
+        USLOSS_Console("Quit() : before cleanProc\n");
         cleanProc(child->pid);
         child = nextChild;
     } 
    
     //remove current if no parents
     if(Current->parentProcPtr == NULL){
-	cleanProc(Current->pid);
+        //USLOSS_Console("Quit() : clean start1 pid: %d\n", Current->pid);
+        cleanProc(Current->pid);
     }
     
     p1_quit(Current->pid);
@@ -479,18 +486,21 @@ void dispatcher(void)
     
     procPtr nextProcess = NULL;
     
-    Current->startTime = procTime();  
+    
     //Check if current is still running, move to the back of the ready list
     if(Current == NULL) {
-        USLOSS_Console("Dispatcher() : starting start1()\n");
+        //USLOSS_Console("Dispatcher() : starting start1()\n");
+        Current = &(ProcTable[1]);
     }
     else if(Current->status == RUNNING) {
         Current->status = READY;
         moveBack(getReadyList(Current->priority));
     }
     else if(Current->status == BLOCKED) {
-        removeFromReadyList(Current->procSlot);
+        removeFromReadyList(Current);
     }
+    
+    Current->startTime = procTime();  
     
     if (pr1 != NULL)
         nextProcess = pr1;
@@ -506,7 +516,7 @@ void dispatcher(void)
         nextProcess = pr6;
     
     //nextProcess = getNextProc();
-    USLOSS_Console("Dispatcher() : next proc assigned - %d\n", nextProcess->pid);
+    //USLOSS_Console("Dispatcher() : next proc assigned - %d\n", nextProcess->pid);
     procPtr oldProcess = NULL;
 /*
     if(oldProcess != Current){
@@ -567,7 +577,7 @@ int sentinel (char *dummy)
 static void checkDeadlock()
 {
     if (procNum > 1){
-        USLOSS_Console("Number of process left: %d, Deadlock appears! Halting...\n", procNum);
+        USLOSS_Console("checkDeadlock() : Number of process left: %d, Deadlock appears! Halting...\n", procNum);
         USLOSS_Halt(1);
     }
     else{
@@ -678,10 +688,12 @@ procPtr getReadyList(int priority) {
 * CLean out the process
 */
 void cleanProc(int pid){
+    USLOSS_Console("cleanProc() : cleaning proc %d\n", pid);
     isKernelMode();
     disableInterrupts();
 
-    int i = pid % MAXPROC;
+    int i = (pid % MAXPROC);
+    //USLOSS_Console("cleanProc() : cleaning procSlot %d\n", i);
 
     ProcTable[i].nextProcPtr = NULL;
     ProcTable[i].childProcPtr = NULL;
@@ -691,7 +703,7 @@ void cleanProc(int pid){
     ProcTable[i].pid = -1;               /* process id */
     ProcTable[i].priority = -1;
     ProcTable[i].startFunc = NULL;   /* function where process begins -- launch */
-    free(ProcTable[i].stack);
+    //free(ProcTable[i].stack);
     ProcTable[i].stack = NULL;
     ProcTable[i].stackSize = -1;
     ProcTable[i].startTime = -1;        /* READY, BLOCKED, QUIT, etc. */
@@ -704,6 +716,7 @@ void cleanProc(int pid){
     ProcTable[i].nextQuitSibling = NULL;
     ProcTable[i].zapProc = NULL;
 
+    USLOSS_Console("cleanProc() : before decrementation of procNum\n");
     procNum--;
     enableInterrupts();
 
@@ -797,21 +810,21 @@ int isZapped(){
 /*
  * Inserts a process into a ready list
  */
-void insertIntoReadyList(int slot) {
+void insertIntoReadyList(procPtr proc) {
     //USLOSS_Console("insertIntoReadyList() : geting last for readylist %d\n", ProcTable[slot].priority);
     procPtr * cur = NULL;
     
-    if (ProcTable[slot].priority == 1) {
+    if (proc->priority == 1) {
         cur = &pr1;
-    } else if (ProcTable[slot].priority == 2) {
+    } else if (proc->priority == 2) {
         cur = &pr2;
-    } else if (ProcTable[slot].priority == 3) {
+    } else if (proc->priority == 3) {
         cur = &pr3;
-    } else if (ProcTable[slot].priority == 4) {
+    } else if (proc->priority == 4) {
         cur = &pr4;
-    } else if (ProcTable[slot].priority == 5) {
+    } else if (proc->priority == 5) {
         cur = &pr5;
-    } else if (ProcTable[slot].priority == 6) {
+    } else if (proc->priority == 6) {
         //USLOSS_Console("insertIntoReadyList() : priority %d\n", ProcTable[slot].priority);
         cur = &pr6;
     } else {
@@ -824,7 +837,7 @@ void insertIntoReadyList(int slot) {
     
     //procPtr list = getLastProc(getReadyList(ProcTable[slot].priority));
     //USLOSS_Console("insertIntoReadyList() : after getLastProc()\n");
-    *cur = &ProcTable[slot];
+    *cur = &(*proc);
     
     //USLOSS_Console("InstertIntoReayList() : pr6 pid %d\n", pr6->pid);
 }
@@ -832,29 +845,29 @@ void insertIntoReadyList(int slot) {
 /*
  * Removes a process from a ready list and moves the next forward
  */
-void removeFromReadyList(int slot) {
+void removeFromReadyList(procPtr proc) {
     //procPtr list = getReadyList(ProcTable[slot].priority);
     
-    procPtr cur = NULL;
+    procPtr * cur = NULL;
     
-    if (ProcTable[slot].priority == 1) {
-        cur = pr1;
-    } else if (ProcTable[slot].priority == 2) {
-        cur = pr2;
-    } else if (ProcTable[slot].priority == 3) {
-        cur = pr3;
-    } else if (ProcTable[slot].priority == 4) {
-        cur = pr4;
-    } else if (ProcTable[slot].priority == 5) {
-        cur = pr5;
-    } else if (ProcTable[slot].priority == 6) {
-        cur = pr6;
+    if (proc->priority == 1) {
+        cur = &pr1;
+    } else if (proc->priority == 2) {
+        cur = &pr2;
+    } else if (proc->priority == 3) {
+        cur = &pr3;
+    } else if (proc->priority == 4) {
+        cur = &pr4;
+    } else if (proc->priority == 5) {
+        cur = &pr5;
+    } else if (proc->priority == 6) {
+        cur = &pr6;
     } else {
         cur = NULL;
     }
     
-    cur = cur->nextProcPtr;
-    ProcTable[slot].nextProcPtr = NULL;
+    *cur = &(*((*cur)->nextProcPtr));
+    proc->nextProcPtr = NULL;
 }
 
 void clock_handler(int dev, void *arg){
