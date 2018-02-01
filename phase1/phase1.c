@@ -698,8 +698,8 @@ void cleanProc(int pid){
     ProcTable[i].nextProcPtr = NULL;
     ProcTable[i].childProcPtr = NULL;
     ProcTable[i].nextSiblingPtr = NULL;
-    ProcTable[i].name[0] = 0;     /* process's name */
-    ProcTable[i].startArg[0] = 0;  /* args passed to process */
+    ProcTable[i].name[0] = "";     /* process's name */
+    ProcTable[i].startArg[0] = '\0';  /* args passed to process */
     ProcTable[i].pid = -1;               /* process id */
     ProcTable[i].priority = -1;
     ProcTable[i].startFunc = NULL;   /* function where process begins -- launch */
