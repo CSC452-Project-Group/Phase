@@ -47,9 +47,6 @@ procStruct ProcTable[MAXPROC];
 //The number of process
 int procNum;
 
-// psr bit struct
-//struct psrValues psr;
-
 // Process lists
 procPtr pr1;
 procPtr pr2;
@@ -104,7 +101,6 @@ void startup(int argc, char *argv[])
     pr6 = NULL;
     
     Current = NULL;
-    // Initialize the clock interrupt handler
 
     // startup a sentinel process
     if (DEBUG && debugflag)
@@ -366,14 +362,12 @@ int join(int *status)
     disableInterrupts();
     int pid;
     //USLOSS_Console("Join() : Checking child process (live and died).\n");
-    //TODO:check whether it has children, if no, return -2
     if(Current->childProcPtr == NULL && Current->quitChild == NULL){
         //USLOSS_Console("Join() : No children in the current process.\n");
 	*status = 0;
         return -2;
     }
 
-    //TODO:check if current has dead child. If no, block itself and wait
     if(Current->quitChild == NULL){
         //USLOSS_Console("Join() : pid %d is blocked beacuse of no dead child.\n", Current->pid);
         Current->status = BLOCKED;
@@ -829,7 +823,7 @@ int zap(int pid){
     return 0; 
 }
 
-//TODO:Zapqueue
+
 int isZapped(){
     isKernelMode("isZapped()");
     return Current->zapped;
@@ -1001,7 +995,7 @@ int getpid() {
 int blockMe(int block_status)
 {
     Current->status = block_status;
-    //TODO: Remove Current from ready list
+    removeFromReadyList(Current);
     if(block_status <= 10){
         USLOSS_Console("blockMe(): newStatus must be greater than 10;. Halting...\n");
         USLOSS_Halt(1);
@@ -1032,7 +1026,7 @@ int unblockProc(int pid)
         return -2;
 
     if(tar->status > 10){
-        //TODO: Insert tar into ready list
+        insertIntoReadyList(tar);
         tar->status = READY;
         dispatcher();
         return 0;
