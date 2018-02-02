@@ -980,7 +980,7 @@ int getpid() {
 int blockMe(int block_status)
 {
     Current->status = block_status;
-    //pop_ReadyList(Current->pid);
+    //TODO: Remove Current from ready list
     if(block_status <= 10){
         USLOSS_Console("blockMe(): newStatus must be greater than 10;. Halting...\n");
         USLOSS_Halt(1);
@@ -993,7 +993,7 @@ int blockMe(int block_status)
         return 0;
     }
 }
-/*
+
 int unblockProc(int pid)
 {
 
@@ -1007,13 +1007,11 @@ int unblockProc(int pid)
         return -2;
     if(tar == Current)
         return -2;
-    if(tar->status == ZAPBLOCK || tar->status == JOINBLOCK)
+    if(tar->status == ZAPPED || tar->status == BLOCKED)
         return -2;
 
-    if(Current->zapStatus == ZAPPED)
-        return -1;
     if(tar->status > 10){
-        push_ReadyList(tar->pid);
+        //TODO: Insert tar into ready list
         tar->status = READY;
         dispatcher();
         return 0;
@@ -1021,4 +1019,4 @@ int unblockProc(int pid)
         return -2;
     }
 }
-*/
+
