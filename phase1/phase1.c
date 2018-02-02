@@ -21,7 +21,7 @@ void launch();
 static void checkDeadlock();
 void disableInterrupts();
 void enableInterrupts();
-void isKernelMode();
+void isKernelMode(char *);
 procPtr getLastProc(procPtr);
 procPtr getReadyList(int);
 void moveBack(procPtr);
@@ -34,6 +34,7 @@ int isZapped();
 void clock_handler(int, void*);
 void dumpProcesses();
 int procTime();
+int getpid();
 
 /* -------------------------- Globals ------------------------------------- */
 
@@ -78,7 +79,7 @@ unsigned int nextPid = SENTINELPID;
    ----------------------------------------------------------------------- */
 void startup(int argc, char *argv[])
 {
-    isKernelMode();
+    isKernelMode("startup()");
     int result; /* value returned by call to fork1() */
 
     /* initialize the process table */
@@ -89,7 +90,7 @@ void startup(int argc, char *argv[])
     procNum = 0;
 
     // Initialize the clock handler
-    USLOSS_IntVec[USLOSS_CLOCK_INT] = clock_handler;
+    //USLOSS_IntVec[USLOSS_CLOCK_INT] = clock_handler;
 
     // Initialize the Ready list, etc.
     if (DEBUG && debugflag)
@@ -146,7 +147,7 @@ void startup(int argc, char *argv[])
    ----------------------------------------------------------------------- */
 void finish(int argc, char *argv[])
 {
-    isKernelMode();
+    isKernelMode("finish()");
     if (DEBUG && debugflag)
         USLOSS_Console("in finish...\n");
 } /* finish */
@@ -173,7 +174,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         USLOSS_Console("fork1() : creating process %s\n", name);
     
     // test if in kernel mode; halt if in user mode
-	isKernelMode();
+	isKernelMode("fork1()");
     disableInterrupts();
 
     // Return if stack size is too small
@@ -295,6 +296,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     p1_fork(ProcTable[procSlot].pid);
 
     //USLOSS_Console("fork1() : before readylist insertion\n");
+
     insertIntoReadyList(&ProcTable[procSlot]);
     //USLOSS_Console("fork1() : after readylist insertion\n");
 
@@ -351,7 +353,7 @@ void launch()
 int join(int *status)
 {
     // test if its in kernel mode; disable Interrupts
-    isKernelMode();
+    isKernelMode("join()");
     disableInterrupts();
     int pid;
     //USLOSS_Console("Join() : Checking child process (live and died).\n");
@@ -397,11 +399,13 @@ int join(int *status)
 void quit(int status)
 {
     //check if its in kernel mode
-    isKernelMode();
+    isKernelMode("quit()");
     disableInterrupts();
 
-    //TODO:Halt when the quiting process has active children process
-    //We need loop through the children queue to find any active process
+    if (Current->childProcPtr != NULL) {
+        USLOSS_Console("quit(): process %d, '%s', has active children. Halting...\n", Current->pid, Current->name);
+        USLOSS_Halt(1);
+    }
 
     //change current status and store last status
     Current->status = QUIT;
@@ -481,7 +485,7 @@ void quit(int status)
 void dispatcher(void)
 {
     //Test for kernel mode
-    isKernelMode();
+    isKernelMode("dispatcher()");
     
     //disable interrupts
     disableInterrupts();
@@ -597,7 +601,7 @@ void disableInterrupts()
     // halt USLOSS
     
     //Check kernel mode
-    isKernelMode();
+    isKernelMode("disableInterrupts()");
 
     int status = USLOSS_PsrSet( USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_INT );
     if(status == USLOSS_ERR_INVALID_PSR){
@@ -616,7 +620,7 @@ void enableInterrupts()
     // turn the interrupts ON iff we are in kernel mode
     // if not in kernel mode, print an error message and
     // halt USLOSS
-    isKernelMode();
+    isKernelMode("enableInterrupts()");
 
     int status = USLOSS_PsrSet( USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT );
     if(status == USLOSS_ERR_INVALID_PSR){
@@ -628,7 +632,7 @@ void enableInterrupts()
 /*
  * Checks if currently in kernel mode
  */
-void isKernelMode() {
+void isKernelMode(char *method) {
     
     /*
     psr->integerPart	= USLOSS_PsrGet(); // get the usloss psr
@@ -641,7 +645,7 @@ void isKernelMode() {
     */
     
     if ((USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0) {
-        USLOSS_Console("fork1() : process is not in kernel mode\n");
+        USLOSS_Console("%s: called while in user mode, by process %d. Halting...\n", method, Current->pid);
 		USLOSS_Halt(1);
     }
 }
@@ -689,7 +693,7 @@ procPtr getReadyList(int priority) {
 */
 void cleanProc(int pid){
     //USLOSS_Console("cleanProc() : cleaning proc %d\n", pid);
-    isKernelMode();
+    isKernelMode("cleanProc()");
     disableInterrupts();
 
     int i = (pid % MAXPROC);
@@ -761,7 +765,7 @@ procPtr getNextProc() {
 */
 int zap(int pid){
     
-    isKernelMode();
+    isKernelMode("zap()");
     disableInterrupts();
 
     procPtr proc;
@@ -803,7 +807,7 @@ int zap(int pid){
 
 //TODO:Zapqueue
 int isZapped(){
-    isKernelMode();
+    isKernelMode("isZapped()");
     return (Current->zapProc != NULL);
 }
 
@@ -811,6 +815,7 @@ int isZapped(){
  * Inserts a process into a ready list
  */
 void insertIntoReadyList(procPtr proc) {
+    
     //USLOSS_Console("insertIntoReadyList() : geting last for readylist %d\n", ProcTable[slot].priority);
     procPtr * cur = NULL;
     
@@ -831,13 +836,20 @@ void insertIntoReadyList(procPtr proc) {
         cur = NULL;
     }
     
-    while (*cur != NULL) {
-        *cur = (*cur)->nextProcPtr;
+    if (*cur == NULL) {
+        *cur = &(*proc);
     }
+    else {
+        while ((*cur)->nextProcPtr != NULL) {
+            cur = &(*cur)->nextProcPtr;
+        }
+        (*cur)->nextProcPtr = &(*proc);
+    }
+    
     
     //procPtr list = getLastProc(getReadyList(ProcTable[slot].priority));
     //USLOSS_Console("insertIntoReadyList() : after getLastProc()\n");
-    *cur = &(*proc);
+    
     
     //USLOSS_Console("InstertIntoReayList() : pr6 pid %d\n", pr6->pid);
 }
@@ -875,7 +887,7 @@ void clock_handler(int dev, void *arg){
     count++;
     USLOSS_Console("Call clockhandler for: %d times\n", count);
 
-    isKernelMode();
+    isKernelMode("clock_handler()");
     disableInterrupts();
    
     if(procTime() - Current->sliceTime >= TIMESLICE){ //Over 80000
@@ -889,7 +901,7 @@ void clock_handler(int dev, void *arg){
 }
 
 int procTime(void){
-    isKernelMode();
+    isKernelMode("procTime()");
     int status = 0;
     int out = USLOSS_DeviceInput(USLOSS_CLOCK_DEV, 0, &status);
 
@@ -947,7 +959,9 @@ void dumpProcesses() {
     }
 }
 
-
+int getpid() {
+    return Current->pid;
+}
 
 
 
