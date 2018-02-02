@@ -24,7 +24,9 @@ struct procStruct {
    procPtr         quitChild;
    procPtr         nextQuitSibling;
    int             procSlot;
-   procPtr         zapProc;   
+   int             zapped;
+   procPtr         zapProc; 
+   procPtr         nextZap;
    int             startTime; //the time when current time slice started
    int             totalTime; //the time of the process has been running
    int             sliceTime; //the time of how long the process has be in this time slice
@@ -56,4 +58,7 @@ union psrValues {
 #define RUNNING 2
 #define QUIT    4
 #define BLOCKED 5
-#define ZAPPED   6
+#define ZAPPED  6
+
+#define IS_ZAPPED  1
+#define NOT_ZAPPED 2

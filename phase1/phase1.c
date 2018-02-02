@@ -3,8 +3,7 @@
 
    University of Arizona
    Computer Science 452
-   :wq
-Fall 2015
+   Fall 2015
 
    ------------------------------------------------------------------------ */
 
@@ -62,9 +61,6 @@ procPtr pr6;
 // current process ID
 procPtr Current;
 
-// zapped process
-procPtr zapProc;
-
 // the next pid to be assigned
 unsigned int nextPid = SENTINELPID;
 
@@ -108,9 +104,6 @@ void startup(int argc, char *argv[])
     pr6 = NULL;
     
     Current = NULL;
-    
-    //Current = NULL;
-    zapProc = NULL;
     // Initialize the clock interrupt handler
 
     // startup a sentinel process
@@ -279,6 +272,9 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         ProcTable[procSlot].status = READY;
         ProcTable[procSlot].quitChild = NULL;
         ProcTable[procSlot].nextQuitSibling = NULL;
+        ProcTable[procSlot].zapProc = NULL;
+        ProcTable[procSlot].nextZap = NULL;
+        ProcTable[procSlot].zapped = NOT_ZAPPED;
         
         if (Current == NULL) {
             ProcTable[procSlot].parentProcPtr = NULL;
@@ -391,10 +387,15 @@ int join(int *status)
     Current->quitChild = Current->quitChild->nextQuitSibling;
     cleanProc(pid);
 
+    //USLOSS_Console("join(): after join\n");
+    
+    /*
     //check the zapped proc, if any return -1
     if(Current->zapProc != NULL){
 	pid = -1;
     }
+    */
+    
     enableInterrupts();
     return pid;  // -1 is not correct! Here to prevent warning.
 } /* join */
@@ -471,6 +472,21 @@ void quit(int status)
         cleanProc(child->pid);
         child = nextChild;
     } 
+    
+    if(Current->zapped == IS_ZAPPED) {
+        //USLOSS_Console("quit(): adding zappers to readyList\n");
+        while (Current->zapProc != NULL) {
+            if (Current->zapProc->status == ZAPPED) {
+                insertIntoReadyList(Current->zapProc);
+                Current->zapProc->status = READY;
+                
+            }
+            //USLOSS_Console("name: %s\n", Current->zapProc->name);
+            //USLOSS_Console("%d\n", i);
+            Current->zapProc = Current->zapProc->nextZap;
+        }
+        
+    }
    
     //remove current if no parents
     if(Current->parentProcPtr == NULL){
@@ -792,36 +808,31 @@ int zap(int pid){
         USLOSS_Console("zap() : process being zapped does not exist. Halting...\n", Current->pid);
         USLOSS_Halt(1);
     }
+    
+    Current->status = ZAPPED;
+    proc->zapped = IS_ZAPPED;
 
-    if(proc->status == QUIT){
-        enableInterrupts();
-        //TODO: We might need a queue for zap here
-        if(Current->zapProc == NULL){
-            return 0;
+    if(proc->zapProc == NULL) {
+        proc->zapProc = Current;
+        removeFromReadyList(Current);
+    } 
+    else {
+        proc = proc->zapProc;
+        while (proc->nextZap != NULL) {
+            proc = proc->nextZap;
         }
-        else{
-            return -1;
-        }
+        proc->nextZap = Current;
     }
-
-    //TODO:Put Current into zap queue
-    Current->status = ZAPPED; 
-    removeFromReadyList(proc);
+    
     dispatcher();
-
-    enableInterrupts();
-
-    //TODO: zapQueue
-    if (Current->zapProc != NULL) {
-        return -1;  
-    }
+    
     return 0; 
 }
 
 //TODO:Zapqueue
 int isZapped(){
     isKernelMode("isZapped()");
-    return (Current->zapProc != NULL);
+    return Current->zapped;
 }
 
 /*
@@ -891,8 +902,18 @@ void removeFromReadyList(procPtr proc) {
         cur = NULL;
     }
     
-    *cur = &(*((*cur)->nextProcPtr));
-    proc->nextProcPtr = NULL;
+    if((*cur)->pid == proc->pid) {
+        //USLOSS_Console("removeFromReadyList(): Removing %d from list %d\n", proc->pid, proc->priority);
+        *cur = &(*((*cur)->nextProcPtr));
+        proc->nextProcPtr = NULL;
+    }
+    else {
+        while ((*cur)->nextProcPtr->pid != proc->pid) {
+            cur = &(*cur)->nextProcPtr;
+        }
+        (*cur)->nextProcPtr = proc->nextProcPtr;
+    }
+    
 }
 
 void clock_handler(int dev, void *arg){
