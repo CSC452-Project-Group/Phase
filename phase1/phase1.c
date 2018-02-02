@@ -3,7 +3,8 @@
 
    University of Arizona
    Computer Science 452
-   Fall 2015
+   :wq
+Fall 2015
 
    ------------------------------------------------------------------------ */
 
@@ -90,7 +91,7 @@ void startup(int argc, char *argv[])
     procNum = 0;
 
     // Initialize the clock handler
-    //USLOSS_IntVec[USLOSS_CLOCK_INT] = clock_handler;
+    USLOSS_IntVec[USLOSS_CLOCK_INT] = clock_handler;
 
     // Initialize the Ready list, etc.
     if (DEBUG && debugflag)
@@ -179,7 +180,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
     // Return if stack size is too small
 	if (stacksize < USLOSS_MIN_STACK) {
-		USLOSS_Console("fork1() : stacksize for process %s too small\n", name); 
+		//USLOSS_Console("fork1() : stacksize for process %s too small\n", name); 
 		return -2;
 	}
 	
@@ -188,7 +189,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         //USLOSS_Console("fork1() : process %d for sentinel\n", priority);
     }
 	else if(priority < MAXPRIORITY || priority > MINPRIORITY){
-		USLOSS_Console("fork1() : priority for process %s is wrong\n", name);
+		//USLOSS_Console("fork1() : priority for process %s is wrong\n", name);
 		return -1;	
 	}
     else {
@@ -197,13 +198,13 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
 
     // Return if name startFunc is NULL
 	if(name == NULL){
-		USLOSS_Console("fork1() : name for process %s is NULL\n", name);
+		//USLOSS_Console("fork1() : name for process %s is NULL\n", name);
 		return -1;	
 	}
 	
     // Return if startFunc is NULL
     if(startFunc == NULL){
-      USLOSS_Console("fork1() : startFunc for process %s is NULL\n", name);
+      //USLOSS_Console("fork1() : startFunc for process %s is NULL\n", name);
       return -1;	
     }	
 
@@ -228,7 +229,7 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     //USLOSS_Console("fork1(): New PID is %d\n", procSlot);
     //No room in the process table, return
     if(procSlot == -1){
-      USLOSS_Console("fork1() : No room for process %s\n", name);
+      //USLOSS_Console("fork1() : No room for process %s\n", name);
       return -1;	
     }
 
@@ -644,7 +645,7 @@ void isKernelMode(char *method) {
 	}
     */
     
-    if ((USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0) {
+    if (!(USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet())) {
         USLOSS_Console("%s: called while in user mode, by process %d. Halting...\n", method, Current->pid);
 		USLOSS_Halt(1);
     }
@@ -770,13 +771,13 @@ int zap(int pid){
 
     procPtr proc;
     if(Current->pid == pid){
-        USLOSS_Console("zap() : process is zapping self\n");
+        USLOSS_Console("zap() : process %d tried to zap itself. Halting...\n", Current->pid);
         USLOSS_Halt(1);
     }
     
     proc = &ProcTable[pid % MAXPROC];
     if(proc->status == EMPTY || proc->pid != pid){
-        USLOSS_Console("zap() : no process to zap with this pid %d\n", pid);
+        USLOSS_Console("zap() : process being zapped does not exist. Halting...\n", Current->pid);
         USLOSS_Halt(1);
     }
 
@@ -888,16 +889,16 @@ void clock_handler(int dev, void *arg){
     USLOSS_Console("Call clockhandler for: %d times\n", count);
 
     isKernelMode("clock_handler()");
-    disableInterrupts();
+    //disableInterrupts();
    
     if(procTime() - Current->sliceTime >= TIMESLICE){ //Over 80000
 	USLOSS_Console("clockHandler(): time slicing\n");
 	//Current->sliceTime = 0;
 	dispatcher();
     }
-    else{
-	enableInterrupts();
-    }
+    //else{
+    //	enableInterrupts();
+    //}
 }
 
 int procTime(void){
@@ -964,4 +965,48 @@ int getpid() {
 }
 
 
+int blockMe(int block_status)
+{
+    Current->status = block_status;
+    //pop_ReadyList(Current->pid);
+    if(block_status <= 10){
+        USLOSS_Console("blockMe(): newStatus must be greater than 10;. Halting...\n");
+        USLOSS_Halt(1);
+    }
+    dispatcher();
 
+    if(isZapped()){
+        return -1;
+    }else{
+        return 0;
+    }
+}
+/*
+int unblockProc(int pid)
+{
+
+    if(pid < 1){
+        return -2;
+    }
+    procPtr tar = &ProcTable[pid % MAXPROC];
+    if(tar->status == EMPTY)
+        return -2;
+    if (tar->pid != pid)
+        return -2;
+    if(tar == Current)
+        return -2;
+    if(tar->status == ZAPBLOCK || tar->status == JOINBLOCK)
+        return -2;
+
+    if(Current->zapStatus == ZAPPED)
+        return -1;
+    if(tar->status > 10){
+        push_ReadyList(tar->pid);
+        tar->status = READY;
+        dispatcher();
+        return 0;
+    }else{
+        return -2;
+    }
+}
+*/
