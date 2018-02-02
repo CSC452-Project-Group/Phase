@@ -36,7 +36,7 @@ void clock_handler(int, void*);
 void dumpProcesses();
 int procTime();
 int getpid();
-
+void illegalInstructionHandler(int dev, void *arg);
 /* -------------------------- Globals ------------------------------------- */
 
 // Patrick's debugging global variable...
@@ -90,6 +90,10 @@ void startup(int argc, char *argv[])
     // Initizlize the process number
     procNum = 0;
 
+    // Initialize the illegalInstruction interrupt handler
+
+    USLOSS_IntVec[USLOSS_ILLEGAL_INT] = illegalInstructionHandler;
+
     // Initialize the clock handler
     USLOSS_IntVec[USLOSS_CLOCK_INT] = clock_handler;
 
@@ -138,6 +142,14 @@ void startup(int argc, char *argv[])
 
     return;
 } /* startup */
+
+void illegalInstructionHandler(int dev, void *arg)
+{
+    if (DEBUG && debugflag)
+	USLOSS_Console("illegalInstructionHandler() called\n");
+}
+
+/* illegalInstructionHandler */
 
 /* ------------------------------------------------------------------------
    Name - finish
