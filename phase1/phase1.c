@@ -100,6 +100,7 @@ void startup(int argc, char *argv[])
     pr5 = NULL;
     pr6 = NULL;
     
+    // Current Running Process
     Current = NULL;
 
     // startup a sentinel process
@@ -251,19 +252,18 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     else
         strcpy(ProcTable[procSlot].startArg, arg);
 	
+        // Initialization of all ProcStruct fields
         ProcTable[procSlot].nextProcPtr = NULL;
         ProcTable[procSlot].childProcPtr = NULL;
         ProcTable[procSlot].nextSiblingPtr = NULL;
         ProcTable[procSlot].pid = pid;
         ProcTable[procSlot].priority = priority;
         ProcTable[procSlot].procSlot = procSlot;
-        //USLOSS_Console("fork1() : assigned priority %d\n", ProcTable[procSlot].priority);
         ProcTable[procSlot].stack = malloc(stacksize);
     	if (ProcTable[procSlot].stack == NULL) {
         	USLOSS_Console("fork1() : not enough memory for process %s stack\n");
 		USLOSS_Halt(1);
     	}	
-        //USLOSS_Console("for1() : setting stack\n");
         ProcTable[procSlot].stackSize = stacksize;
         ProcTable[procSlot].status = READY;
         ProcTable[procSlot].quitChild = NULL;
@@ -287,8 +287,6 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
         }
         
 	
-    // Initialize context for this process, but use launch function pointer for
-    // the initial value of the process's program counter (PC)
     procNum++;	
 
     USLOSS_ContextInit(&(ProcTable[procSlot].state),
@@ -301,7 +299,6 @@ int fork1(char *name, int (*startFunc)(char *), char *arg,
     p1_fork(ProcTable[procSlot].pid);
 
     //USLOSS_Console("fork1() : before readylist insertion\n");
-
     insertIntoReadyList(&ProcTable[procSlot]);
     //USLOSS_Console("fork1() : after readylist insertion\n");
 
@@ -383,15 +380,8 @@ int join(int *status)
 
     //USLOSS_Console("join(): after join\n");
     
-    /*
-    //check the zapped proc, if any return -1
-    if(Current->zapProc != NULL){
-	pid = -1;
-    }
-    */
-    
     enableInterrupts();
-    return pid;  // -1 is not correct! Here to prevent warning.
+    return pid; 
 } /* join */
 
 
@@ -435,7 +425,6 @@ void quit(int status)
         }
         
         if (Current->parentProcPtr->quitChild == NULL) {
-            //USLOSS_Console("quit() : child should enter here\n");
             //USLOSS_Console("quit() : parent pid: %d\n", Current->parentProcPtr->pid);
             
             Current->parentProcPtr->quitChild = Current;
@@ -467,6 +456,7 @@ void quit(int status)
         child = nextChild;
     } 
     
+    // Add any zapping processes back the the ready list and update status
     if(Current->zapped == IS_ZAPPED) {
         //USLOSS_Console("quit(): adding zappers to readyList\n");
         while (Current->zapProc != NULL) {
@@ -476,7 +466,6 @@ void quit(int status)
                 
             }
             //USLOSS_Console("name: %s\n", Current->zapProc->name);
-            //USLOSS_Console("%d\n", i);
             Current->zapProc = Current->zapProc->nextZap;
         }
         
@@ -517,11 +506,9 @@ void dispatcher(void)
     
     //dumpProcesses();
     
-    
     //Check if current is still running, move to the back of the ready list
     if(Current == NULL) {
         //USLOSS_Console("Dispatcher() : starting start1()\n");
-        //Current = &(ProcTable[1]);
     }
     else if(Current->status == RUNNING) {
         Current->status = READY;
@@ -531,8 +518,7 @@ void dispatcher(void)
         removeFromReadyList(Current);
     }
     
-     
-    
+    // TODO: use a method for this
     if (pr1 != NULL)
         nextProcess = pr1;
     else if (pr2 != NULL)
@@ -545,7 +531,6 @@ void dispatcher(void)
         nextProcess = pr5;
     else {
         nextProcess = pr6;
-        //USLOSS_Console("Dispatcher() : get the sentinel to run\n");
     }
     
     procPtr oldProcess = NULL;
@@ -569,9 +554,6 @@ void dispatcher(void)
     }
     
     Current->startTime = procTime(); 
-    //Current = nextProcess;
-    
-    //enableInterrupts();
     
 } /* dispatcher */
 
@@ -603,13 +585,15 @@ int sentinel (char *dummy)
 /* check to determine if deadlock has occurred... */
 static void checkDeadlock()
 {
+    // If sentinel is not the only running process
+    // Then the code is in deadlock
     if (procNum > 1){
         USLOSS_Console("checkDeadlock() : Number of process left: %d, Deadlock appears! Halting...\n", procNum);
         USLOSS_Halt(1);
     }
     else{
         USLOSS_Console("All processes completed.\n");
-	USLOSS_Halt(0);
+        USLOSS_Halt(0);
     }
 } /* checkDeadlock */
 
@@ -640,7 +624,7 @@ void disableInterrupts()
  */
 void enableInterrupts()
 {
-    // turn the interrupts ON iff we are in kernel mode
+    // turn the interrupts ON if we are in kernel mode
     // if not in kernel mode, print an error message and
     // halt USLOSS
     isKernelMode("enableInterrupts()");
@@ -657,6 +641,7 @@ void enableInterrupts()
  */
 void isKernelMode(char *method) {
     
+    // TODO: Figure out the union psr struct
     /*
     psr->integerPart	= USLOSS_PsrGet(); // get the usloss psr
     
@@ -675,10 +660,11 @@ void isKernelMode(char *method) {
 
 /*
  * returns pointer to last node in the given ready table
+ * NOT IN USE!!!!!!!!!!!!!!
  */
 procPtr getLastProc(procPtr head) {
-    procPtr cur = head;
     
+    procPtr cur = head;
     USLOSS_Console("getLastProc() : getting last in table %d\n", cur->priority);
     while (cur->nextProcPtr != NULL) {
         cur = cur->nextProcPtr;
@@ -711,7 +697,6 @@ procPtr getReadyList(int priority) {
 }
 
 /*
-
 * CLean out the process
 */
 void cleanProc(int pid){
@@ -749,7 +734,8 @@ void cleanProc(int pid){
 
 }
 
-/* moves a process to the back of its ready list
+/* 
+ * moves a process to the back of its ready list
  */
 void moveBack(procPtr head) {
     procPtr cur = head;
@@ -792,20 +778,24 @@ int zap(int pid){
     disableInterrupts();
 
     procPtr proc;
+    // Can't zap itself
     if(Current->pid == pid){
         USLOSS_Console("zap() : process %d tried to zap itself. Halting...\n", Current->pid);
         USLOSS_Halt(1);
     }
     
+    // Can't zap a proc that doesn't exist
     proc = &ProcTable[pid % MAXPROC];
     if(proc->status == EMPTY || proc->pid != pid){
         USLOSS_Console("zap() : process being zapped does not exist. Halting...\n", Current->pid);
         USLOSS_Halt(1);
     }
     
+    // set status and zapped for two processes
     Current->status = ZAPPED;
     proc->zapped = IS_ZAPPED;
 
+    // Add zapper to the zapped list
     if(proc->zapProc == NULL) {
         proc->zapProc = Current;
         removeFromReadyList(Current);
@@ -818,12 +808,15 @@ int zap(int pid){
         proc->nextZap = Current;
     }
     
+    // zapper is now blocked so call dispatcher
     dispatcher();
     
     return 0; 
 }
 
-
+/*
+ * checks zapped status
+ */
 int isZapped(){
     isKernelMode("isZapped()");
     return Current->zapped;
@@ -863,11 +856,6 @@ void insertIntoReadyList(procPtr proc) {
         }
         (*cur)->nextProcPtr = &(*proc);
     }
-    
-    
-    //procPtr list = getLastProc(getReadyList(ProcTable[slot].priority));
-    //USLOSS_Console("insertIntoReadyList() : after getLastProc()\n");
-    
     
     //USLOSS_Console("InstertIntoReayList() : pr6 pid %d\n", pr6->pid);
 }
@@ -910,6 +898,9 @@ void removeFromReadyList(procPtr proc) {
     
 }
 
+/*
+ * Handles the clock interupt
+ */
 void clock_handler(int dev, void *arg){
     static int count = 0;
     count++;
@@ -985,13 +976,25 @@ void dumpProcesses() {
             cur = cur->nextProcPtr;
         }
     }
+    
+    /*
+    USLOSS_Console("PID	Parent	Priority	Status		# Kids	CPUtime	Name\n");
+    
+    int i;
+    for(i = 0; i < 50; i++) {
+        
+        USLOSS_Console("%d	%d   %d 	%d		%s\n", ProcTable[i].pid, 
+                        ProcTable[i].parentProcPtr->pid, ProcTable[i].status, ProcTable[i].name);
+    }
+    */
 }
 
+// returns current procs pid
 int getpid() {
     return Current->pid;
 }
 
-
+// blocks self
 int blockMe(int block_status)
 {
     Current->status = block_status;
@@ -1009,6 +1012,7 @@ int blockMe(int block_status)
     }
 }
 
+// unblocks a proc
 int unblockProc(int pid)
 {
 
