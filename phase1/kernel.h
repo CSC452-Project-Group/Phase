@@ -19,6 +19,17 @@ struct procStruct {
    unsigned int    stackSize;
    int             status;        /* READY, BLOCKED, QUIT, etc. */
    /* other fields as needed... */
+   procPtr         parentProcPtr;
+   int             lastProc;
+   procPtr         quitChild;
+   procPtr         nextQuitSibling;
+   int             procSlot;
+   int             zapped;
+   procPtr         zapProc; 
+   procPtr         nextZap;
+   int             startTime; //the time when current time slice started
+   int             totalTime; //the time of the process has been running
+   int             sliceTime; //the time of how long the process has be in this time slice
 };
 
 struct psrBits {
@@ -39,5 +50,15 @@ union psrValues {
 #define MINPRIORITY 5
 #define MAXPRIORITY 1
 #define SENTINELPID 1
-#define SENTINELPRIORITY (MINPRIORITY + 1)
+#define SENTINELPRIORITY 6
+#define TIMESLICE    80000
 
+#define EMPTY   0
+#define READY   1
+#define RUNNING 2
+#define QUIT    4
+#define BLOCKED 5
+#define ZAPPED  6
+
+#define IS_ZAPPED  1
+#define NOT_ZAPPED 2
