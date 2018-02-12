@@ -17,8 +17,15 @@
 
 /* ------------------------- Prototypes ----------------------------------- */
 int start1 (char *);
-
-
+void disableInterrupts();
+void enableInterrupts();
+void isKernelMode(char *);
+void InitialSlot(int);
+void InitialBox(int);
+void InitialQueue(queue*, int);
+void enqueue(queue*, void*);
+void *dequeue(queue*);
+void *head(queue*);
 /* -------------------------- Globals ------------------------------------- */
 
 int debugflag2 = 0;
@@ -29,6 +36,17 @@ mailbox MailBoxTable[MAXMBOX];
 // also need array of mail slots, array of function ptrs to system call 
 // handlers, ...
 
+// mail slots
+mailSlot MailSlotTable[MAXSLOTS];
+
+// processes
+mboxProc mboxProcTable[MAXPROC];
+
+int boxNum, slotNum;
+int nextBoxID = 0, nextSlotID = 0, nextProc = 0;
+
+//system call
+void (*syscall_vec[MAXSYSCALLS])(systemArgs *args);
 
 
 
@@ -49,12 +67,39 @@ int start1(char *arg)
 
     if (DEBUG2 && debugflag2)
         USLOSS_Console("start1(): at beginning\n");
+    
+    //Test for kernel mode
+    isKernelMode("start1()");
+    
+    //disable interrupts
+    disableInterrupts();
 
     // Initialize the mail box table, slots, & other data structures.
+    for (int i = 0; i < MAXBOX; i++){
+	InitialBox(i);
+    }
 
+    for (int i = 0; i < MAXSLOTS; i++){
+        InitialSlot(i);
+    }
+
+    boxNum = 0;
+    slotNum = 0;
+    
     // Initialize USLOSS_IntVec and system call handlers,
-
+    USLOSS_IntVec[USLOSS_CLOCK_INT] = clockHandler2;
+    USLOSS_IntVec[USLOSS_DISK_INT] = diskHandler;
+    USLOSS_IntVec[USLOSS_TERM_INT] = termHandler;
+    USLOSS_IntVec[USLOSS_SYSCALL_INT] = syscallHandler;
+    
     // allocate mailboxes for interrupt handlers.  Etc... 
+
+    
+    for (i = 0; i < MAXSYSCALLS; i++) {
+        syscall_vec[i] = nullsys;
+    }
+
+    enableInterrupts();
 
     // Create a process for start2, then block on a join until start2 quits
     if (DEBUG2 && debugflag2)
@@ -67,6 +112,26 @@ int start1(char *arg)
 
     return 0;
 } /* start1 */
+
+// Initializes the mailbox. i: index of the box in the mailbox table.
+void InitialBox(int i)
+{
+    MailBoxTable[i].mboxID = -1;
+    MailBoxTable[i].status = INACTIVE;
+    MailBoxTable[i].totalSlots = -1;
+    MailBoxTable[i].slotSize = -1;
+    boxNum--; 
+}
+
+
+// Initializes a mail slot. i: Index of the mail slot in the mail slot table.
+void InitialSlot(int i)
+{
+    MailSlotTable[i].mboxID = -1;
+    MailSlotTable[i].status = EMPTY;
+    MailSlotTable[i].slotID = -1;
+    slotNum--;
+}
 
 
 /* ------------------------------------------------------------------------
@@ -111,3 +176,98 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
 {
     return 0;
 } /* MboxReceive */
+
+/*
+ * Disables the interrupts.
+ */
+void disableInterrupts()
+{
+    // turn the interrupts OFF iff we are in kernel mode
+    // if not in kernel mode, print an error message and
+    // halt USLOSS
+    
+    //Check kernel mode
+    isKernelMode("disableInterrupts()");
+
+    int status = USLOSS_PsrSet( USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_INT );
+    if(status == USLOSS_ERR_INVALID_PSR){
+        USLOSS_Console("disableInterrupts(): error invalid psr, (halting)");
+        USLOSS_Halt(1);
+    }
+
+
+} /* disableInterrupts */
+
+/*
+ * Enables the interrupts.
+ */
+void enableInterrupts()
+{
+    // turn the interrupts ON if we are in kernel mode
+    // if not in kernel mode, print an error message and
+    // halt USLOSS
+    isKernelMode("enableInterrupts()");
+
+    int status = USLOSS_PsrSet( USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT );
+    if(status == USLOSS_ERR_INVALID_PSR){
+        USLOSS_Console("enableInterrupts(): error invalid psr, (halting)");
+        USLOSS_Halt(1);
+    }
+}
+
+/*
+ * Checks if currently in kernel mode
+ */
+void isKernelMode(char *method) {
+    if (!(USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet())) {
+        USLOSS_Console("%s: called while in user mode, by process %d. Halting...\n", method, Current->pid);
+		USLOSS_Halt(1);
+    }
+}
+
+
+/*
+-------------------------------------------------
+ Help functions for data structure queue
+-------------------------------------------------
+*/
+
+// Initialize the data structure
+void InitialQueue(queue* q, int ID){
+    q->head = NULL;
+    q->tail = NULL;
+    q->size = 0;
+    q->ID   = ID;
+}
+
+// Insert the pointer to the end of the exiting queue
+void enqueue(queue* q, void* p){
+    if (q->head == NULL && q->tail == NULL) {
+        q->head = q->tail = p;
+    } 
+    else { /* TODO: handle different ID here, if it's for slot or process */
+    }
+   
+    q->size++;
+}
+
+// Remove and return the head of the queue
+void* dequeue(queue* q){
+    void* temp = q->head;
+    if (q->head == NULL) {
+        return NULL;
+    }
+    if (q->head == q->tail) {
+        q->head = q->tail = NULL; 
+    }
+    else { /* TODO: handle different ID here, if it's for slot or process */
+    }
+
+    q->size--;
+    return temp
+}
+
+// Return the head of the queue
+void* head(queue* q){
+    return q->head;
+}
