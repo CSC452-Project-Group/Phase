@@ -14,7 +14,7 @@
 #include <stdlib.h>
 
 #include <message.h>
-
+#include "handler.c"
 /* ------------------------- Prototypes ----------------------------------- */
 int start1 (char *);
 void disableInterrupts();
@@ -93,7 +93,13 @@ int start1(char *arg)
     USLOSS_IntVec[USLOSS_SYSCALL_INT] = syscallHandler;
     
     // allocate mailboxes for interrupt handlers.  Etc... 
-
+    Mbox[CLOCK] = MboxCreate(0, sizeof(int)); // clock
+    Mbox[DISK] = MboxCreate(0, sizeof(int)); // disk 1
+    Mbox[DISK+1] = MboxCreate(0, sizeof(int)); // disk 2
+    Mbox[TERM] = MboxCreate(0, sizeof(int)); // terminal 1
+    Mbox[TERM+1] = MboxCreate(0, sizeof(int)); // terminal 2
+    Mbox[TERM+2]= MboxCreate(0, sizeof(int)); // terminal 3
+    Mbox[TERM+3] = MboxCreate(0, sizeof(int)); // terminal 4
     
     for (i = 0; i < MAXSYSCALLS; i++) {
         syscall_vec[i] = nullsys;
@@ -145,6 +151,11 @@ void InitialSlot(int i)
    ----------------------------------------------------------------------- */
 int MboxCreate(int slots, int slot_size)
 {
+    //Test for kernel mode
+    isKernelMode("MboxCreate()");
+
+    //disable interrupts
+    disableInterrupts();
     return 0;
 } /* MboxCreate */
 
