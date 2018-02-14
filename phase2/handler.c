@@ -14,18 +14,17 @@ extern void isKernelMode(char *);
 
 int Mbox[7];
 int Procblocked = 0;
-
-/* an error method to handle invalid syscalls */
+/*
+// an error method to handle invalid syscalls 
 void nullsys(sysargs *args)
 {
     USLOSS_Console("nullsys(): Invalid syscall. Halting...\n");
     USLOSS_Halt(1);
-} /* nullsys */
-
+} nullsys */
 
 void clockHandler2(int dev, void *arg)
 {
-    disbaleInterrupts();
+    disableInterrupts();
     isKernelMode("clockHandler2()");
     if (DEBUG2 && debugflag2)
 	USLOSS_Console("clockHandler2(): called\n");
@@ -41,7 +40,7 @@ void clockHandler2(int dev, void *arg)
     num++;
     if(num == 5){
 	int status;
-        USLOSS_DeviceInput(dev, 0, &status);
+//        USLOSS_DeviceInput(dev, 0, &status);
 	MboxCondSend(Mbox[CLOCK], &status, sizeof(int));
 	num = 0;
     }
@@ -54,7 +53,7 @@ void clockHandler2(int dev, void *arg)
 
 void diskHandler(int dev, void *arg)
 {
-    disbaleInterrupts();
+    disableInterrupts();
     isKernelMode("clockHandler2()");
     if (DEBUG2 && debugflag2)
 	USLOSS_Console("diskHandler(): called\n");
@@ -80,14 +79,14 @@ void diskHandler(int dev, void *arg)
     }
 
     // Condition send
-    MboxConsend(Mbox[DISK+unit], &status, sizeof(int));
+    MboxCondSend(Mbox[DISK+unit], &status, sizeof(int));
     enableInterrupts();
 } /* diskHandler */
 
 
 void termHandler(int dev, void *arg)
 {
-    disbaleInterrupts();
+    disableInterrupts();
     isKernelMode("termHandler()");
     if (DEBUG2 && debugflag2)
 	USLOSS_Console("termHandler(): called\n");
@@ -113,19 +112,19 @@ void termHandler(int dev, void *arg)
     }
 
     // Condition send
-    MboxConsend(Mbox[TERM+unit], &status, sizeof(int));
+    MboxCondSend(Mbox[TERM+unit], &status, sizeof(int));
     enableInterrupts();
 } /* termHandler */
 
 
 void syscallHandler(int dev, void *arg)
 {
-    disbaleInterrupts();
+    disableInterrupts();
     isKernelMode("syscallHandler()");
     if (DEBUG2 && debugflag2)
 	USLOSS_Console("syscallHandler(): called\n");
-   
-    systemArgs *sys = (systemArgs*) arg;
+  /* 
+    //systemArgs *sys = (systemArgs*) arg;
     if (dev != USLOSS_SYSCALL_INT) {
     if (DEBUG2 && debugflag2) 
       USLOSS_Console("sysCallHandler(): called by other device, returning\n");
@@ -139,14 +138,14 @@ void syscallHandler(int dev, void *arg)
     }
 
     // nullsys
-    nullsys((systemArgs*)arg);
+    nullsys((systemArgs*)arg);*/
     enableInterrupts();
 
 } /* syscallHandler */
 
 // waitDevice (int, int, int)
 int waitDevice(int ID, int unit, int *status){
-    disbaleInterrupts();
+    disableInterrupts();
     isKernelMode("waitDevice()");
 
     int check;
@@ -157,7 +156,7 @@ int waitDevice(int ID, int unit, int *status){
 	check = DISK;
     }
     if(ID == USLOSS_TERM_DEV){
-	check = TERM
+	check = TERM;
     }
     else{
 	USLOSS_Console("waitDevice(): Invalid device type; %d. Halting...\n", ID);

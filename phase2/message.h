@@ -1,13 +1,25 @@
-
+#ifndef _MESSAGE_H_
+#define _MESSAGE_H_
 #define DEBUG2 1
 
 typedef struct mailSlot *slotPtr;
 typedef struct mailbox   mailbox;
 typedef struct mboxProc *mboxProcPtr;
 typedef struct queue    queue;
+typedef struct mailSlot  mailSlot;
+typedef struct mboxProc mboxProc;
 
 #define SLOTQUEUE 0
 #define PROCQUEUE 1
+
+struct mboxProc {
+    mboxProcPtr     nextMboxProc;
+    int             pid;     // process ID
+    void            *msg_ptr; // where to put received message
+    int             msg_size;
+    slotPtr         messageReceived; // mail slot containing message we've received
+};
+
 struct queue {
     void *head;
     void *tail;
@@ -21,6 +33,9 @@ struct mailbox {
     int       status;
     int       totalSlots;
     int       slotSize;
+    queue     slotq;
+    queue     bProcS;
+    queue     bProcR;
 };
 
 struct mailSlot {
@@ -28,6 +43,9 @@ struct mailSlot {
     int       status;
     // other items as needed...
     int       slotID;
+    slotPtr   nextSlotPtr;
+    char      message[MAX_MESSAGE];
+    int       messageLen;
 };
 
 struct psrBits {
@@ -54,3 +72,5 @@ union psrValues {
 //process Macro
 #define FULL     11
 #define NONE     12
+
+#endif

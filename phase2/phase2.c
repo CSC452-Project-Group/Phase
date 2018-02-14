@@ -14,7 +14,7 @@
 #include <stdlib.h>
 
 #include <message.h>
-#include "handler.c"
+#include <handler.c>
 /* ------------------------- Prototypes ----------------------------------- */
 int start1 (char *);
 void disableInterrupts();
@@ -46,7 +46,7 @@ int boxNum, slotNum;
 int nextBoxID = 0, nextSlotID = 0, nextProc = 0;
 
 //system call
-void (*syscall_vec[MAXSYSCALLS])(systemArgs *args);
+//void (*syscall_vec[MAXSYSCALLS])(systemArgs *args);
 
 
 
@@ -75,7 +75,7 @@ int start1(char *arg)
     disableInterrupts();
 
     // Initialize the mail box table, slots, & other data structures.
-    for (int i = 0; i < MAXBOX; i++){
+    for (int i = 0; i < MAXMBOX; i++){
 	InitialBox(i);
     }
 
@@ -100,11 +100,11 @@ int start1(char *arg)
     Mbox[TERM+1] = MboxCreate(0, sizeof(int)); // terminal 2
     Mbox[TERM+2]= MboxCreate(0, sizeof(int)); // terminal 3
     Mbox[TERM+3] = MboxCreate(0, sizeof(int)); // terminal 4
-    
+    /*
     for (i = 0; i < MAXSYSCALLS; i++) {
         syscall_vec[i] = nullsys;
     }
-
+    */
     enableInterrupts();
 
     // Create a process for start2, then block on a join until start2 quits
@@ -156,7 +156,43 @@ int MboxCreate(int slots, int slot_size)
 
     //disable interrupts
     disableInterrupts();
-    return 0;
+    
+    //check the mail box avilable
+    if(boxNum == MAXMBOX || slots < 0 || slot_size < 0 || slot_size > MAX_MESSAGE){
+	if(DEBUG2 && debugflag2)
+	    USLOSS_Console("MboxCreate(): illegal args or max boxes reached, returning -1\n");
+	return -1;
+    }
+
+    //find the first available index
+    if(nextBoxID >= MAXMBOX || MailBoxTable[nextBoxID].status == ACTIVE){
+	for(int i=0; i< MAXMBOX; i++){
+	    if(MailBoxTable[i].status == INACTIVE){
+	        nextBoxID = i;
+		break;
+	    }
+	}
+    }
+
+    mailbox *box = &MailBoxTable[nextBoxID];
+
+    box->mboxID = nextBoxID++;
+    box->totalSlots = slots;
+    box->slotSize = slot_size;
+    box->status = ACTIVE;
+
+    InitialQueue(&box->slotq, SLOTQUEUE);
+    InitialQueue(&box->bProcS, PROCQUEUE);
+    InitialQueue(&box->bProcR, PROCQUEUE);
+
+    boxNum++;
+
+    if (DEBUG2 && debugflag2){
+        USLOSS_Console("MboxCreate(): created mailbox with id = %d, totalSlots = %d, slot_size = %d, numBoxes = %d\n", box->mboxID, box->totalSlots, box->slotSize, boxNum);
+    }
+
+    enableInterrupts();
+    return box->mboxID;
 } /* MboxCreate */
 
 
@@ -187,6 +223,11 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
 {
     return 0;
 } /* MboxReceive */
+
+int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size)
+{
+    return 0;
+}
 
 /*
  * Disables the interrupts.
@@ -231,7 +272,7 @@ void enableInterrupts()
  */
 void isKernelMode(char *method) {
     if (!(USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet())) {
-        USLOSS_Console("%s: called while in user mode, by process %d. Halting...\n", method, Current->pid);
+        USLOSS_Console("%s: called while in user mode, by process %d. Halting...\n", method, getpid());
 		USLOSS_Halt(1);
     }
 }
@@ -257,6 +298,12 @@ void enqueue(queue* q, void* p){
         q->head = q->tail = p;
     } 
     else { /* TODO: handle different ID here, if it's for slot or process */
+        if(q->ID == SLOTQUEUE)
+	    ((slotPtr)(q->tail))->nextSlotPtr = p;
+	else if(q->ID == PROCQUEUE)
+	    ((mboxProcPtr)(q->tail))->nextMboxProc = p;
+	else
+	    q->tail = p;
     }
    
     q->size++;
@@ -272,13 +319,24 @@ void* dequeue(queue* q){
         q->head = q->tail = NULL; 
     }
     else { /* TODO: handle different ID here, if it's for slot or process */
+        if(q->ID == SLOTQUEUE)
+	    q->head = ((slotPtr)(q->head))->nextSlotPtr;
+	else if(q->ID == PROCQUEUE)
+	    q->head = ((mboxProcPtr)(q->head))->nextMboxProc;
     }
 
     q->size--;
-    return temp
+    return temp;
 }
 
 // Return the head of the queue
 void* head(queue* q){
     return q->head;
+}
+
+int check_io(void)
+{
+    if (DEBUG2 && debugflag2)
+	USLOSS_Console("check_io(): called\n");
+    return 0;
 }
