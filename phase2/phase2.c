@@ -212,7 +212,7 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 	disableInterrupts();
 	isKernelMode("MboxSend");
 
-	USLOSS_Console("MboxSend: checking for errors\n");
+	//USLOSS_Console("MboxSend: checking for errors\n");
 
 	if (MailBoxTable[mbox_id].status == INACTIVE) {
 		USLOSS_Console("MboxSend: mailbox %d is inactive\n", mbox_id);
@@ -236,7 +236,7 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 		USLOSS_Halt(1);
 	}
 
-	USLOSS_Console("MboxSend: after checking for errors\n");
+	//USLOSS_Console("MboxSend: after checking for errors\n");
 
 	// Find an unused slot in the slot table
 	while (MailSlotTable[curSlot%MAXSLOTS].status == USED) {
@@ -244,15 +244,15 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 	}
 	int slot = curSlot % MAXSLOTS;
 
-	USLOSS_Console("MboxSend: found a slot\n");
+	//USLOSS_Console("MboxSend: found a slot\n");
 
 	MailSlotTable[slot].status = USED;
-	USLOSS_Console("MboxSend: before memcpy\n");
-	memcpy(MailSlotTable[slot].message, msg_ptr, msg_size);
+	//USLOSS_Console("MboxSend: before memcpy\n");
+	memcpy(&MailSlotTable[slot].message, &msg_ptr, msg_size);
 	MailSlotTable[slot].mboxID = mbox_id;
 	MailSlotTable[slot].messageLen = msg_size;
 
-	USLOSS_Console("MboxSend: after memcpy\n");
+	//USLOSS_Console("MboxSend: after memcpy\n");
 
 	enqueue(&MailBoxTable[mbox_id].slotq, &MailSlotTable[curSlot%MAXSLOTS]);
 
@@ -435,7 +435,7 @@ void* dequeue(queue* q){
         if(q->ID == SLOTQUEUE)
 	    q->head = ((slotPtr)(q->head))->nextSlotPtr;
 	    q->head = ((slotPtr)(q->head))->nextSlotPtr;
-	else if(q->ID == PROCQUEUE)
+		if(q->ID == PROCQUEUE)
 	    q->head = ((mboxProcPtr)(q->head))->nextMboxProc;
     }
 
