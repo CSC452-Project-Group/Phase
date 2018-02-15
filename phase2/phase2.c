@@ -12,6 +12,7 @@
 #include <phase2.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <message.h>
 #include <handler.c>
@@ -42,7 +43,7 @@ mailSlot MailSlotTable[MAXSLOTS];
 // processes
 mboxProc mboxProcTable[MAXPROC];
 
-int boxNum, slotNum;
+int boxNum, slotNum, curSlot;
 int nextBoxID = 0, nextSlotID = 0, nextProc = 0;
 
 //system call
@@ -85,6 +86,7 @@ int start1(char *arg)
 
     boxNum = 0;
     slotNum = 0;
+	curSlot = 0;
     
     // Initialize USLOSS_IntVec and system call handlers,
     USLOSS_IntVec[USLOSS_CLOCK_INT] = clockHandler2;
@@ -123,6 +125,7 @@ int start1(char *arg)
 void InitialBox(int i)
 {
     MailBoxTable[i].mboxID = -1;
+	MailBoxTable[i].curSlots = 0;
     MailBoxTable[i].status = INACTIVE;
     MailBoxTable[i].totalSlots = -1;
     MailBoxTable[i].slotSize = -1;
@@ -136,7 +139,7 @@ void InitialSlot(int i)
     MailSlotTable[i].mboxID = -1;
     MailSlotTable[i].status = EMPTY;
     MailSlotTable[i].slotID = -1;
-    slotNum--;
+	MailSlotTable[i].message = NULL;
 }
 
 
@@ -206,6 +209,53 @@ int MboxCreate(int slots, int slot_size)
    ----------------------------------------------------------------------- */
 int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 {
+	disableInterrupts();
+	isKernelMode("MboxSend");
+
+	USLOSS_Console("MboxSend: checking for errors\n");
+
+	if (MailBoxTable[mbox_id].status == INACTIVE) {
+		USLOSS_Console("MboxSend: mailbox %d is inactive\n", mbox_id);
+		return -1;
+	}
+
+	if (msg_size > MailBoxTable[mbox_id].slotSize) {
+		USLOSS_Console("MboxSend: message size %d is too large\n", msg_size);
+		return -1;
+	}
+
+	if (MailBoxTable[mbox_id].curSlots == MailBoxTable[mbox_id].totalSlots) {
+		USLOSS_Console("MboxSend: mailbox has no slots available\n");
+		//enqueue(&MailBoxTable[mbox_id].bProcS, ); // TODO: finish this mthod call
+		blockMe(NONE);
+		disableInterrupts();
+	}
+
+	if (slotNum == MAXSLOTS) {
+		USLOSS_Console("MboxSend: No slots left\n");
+		USLOSS_Halt(1);
+	}
+
+	USLOSS_Console("MboxSend: after checking for errors\n");
+
+	// Find an unused slot in the slot table
+	while (MailSlotTable[curSlot%MAXSLOTS].status == USED) {
+		curSlot++;
+	}
+	int slot = curSlot % MAXSLOTS;
+
+	USLOSS_Console("MboxSend: found a slot\n");
+
+	MailSlotTable[slot].status = USED;
+	USLOSS_Console("MboxSend: before memcpy\n");
+	memcpy(MailSlotTable[slot].message, msg_ptr, msg_size);
+	MailSlotTable[slot].mboxID = mbox_id;
+	MailSlotTable[slot].messageLen = msg_size;
+
+	USLOSS_Console("MboxSend: after memcpy\n");
+
+	enqueue(&MailBoxTable[mbox_id].slotq, &MailSlotTable[curSlot%MAXSLOTS]);
+
     return 0;
 } /* MboxSend */
 

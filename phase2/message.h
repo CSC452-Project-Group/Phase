@@ -32,6 +32,7 @@ struct mailbox {
     // other items as needed...
     int       status;
     int       totalSlots;
+	int       curSlots;
     int       slotSize;
     queue     slotq;
     queue     bProcS;
@@ -44,7 +45,7 @@ struct mailSlot {
     // other items as needed...
     int       slotID;
     slotPtr   nextSlotPtr;
-    char      message[MAX_MESSAGE];
+    void      *message;
     int       messageLen;
 };
 
