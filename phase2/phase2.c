@@ -247,8 +247,9 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 	//USLOSS_Console("MboxSend: found a slot\n");
 
 	MailSlotTable[slot].status = USED;
-	//USLOSS_Console("MboxSend: before memcpy\n");
+	//USLOSS_Console("MboxSend(): memcpy '%s'\n", msg_ptr);
 	memcpy(&MailSlotTable[slot].message, &msg_ptr, msg_size);
+	//USLOSS_Console("MboxSend(): memcpy'd '%s'\n", MailSlotTable[slot].message);
 	MailSlotTable[slot].mboxID = mbox_id;
 	MailSlotTable[slot].messageLen = msg_size;
 
@@ -293,7 +294,9 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
 	// copy message to the buffer
 	mailSlot * temp = NULL;
 	temp = dequeue(&(MailBoxTable[mbox_id].slotq));
-	memcpy(&msg_ptr, &(temp->message), temp->messageLen);
+	//USLOSS_Console("MboxRecieve(): message to memcpy '%s'\n", temp->message);
+	memcpy(msg_ptr, temp->message, temp->messageLen);
+	//USLOSS_Console("MboxRecieve(): message memcpy'd `%s'\n", msg_ptr);
 
     return temp->messageLen;
 } /* MboxReceive */
