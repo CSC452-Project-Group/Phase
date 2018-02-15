@@ -2,7 +2,6 @@
 #include <phase1.h>
 #include <phase2.h>
 #include "message.h"
-
 #define CLOCK 0
 #define DISK 1
 #define TERM 3
@@ -14,13 +13,13 @@ extern void isKernelMode(char *);
 
 int Mbox[7];
 int Procblocked = 0;
-/*
+
 // an error method to handle invalid syscalls 
-void nullsys(sysargs *args)
+void nullsys(USLOSS_Sysargs *args)
 {
     USLOSS_Console("nullsys(): Invalid syscall. Halting...\n");
     USLOSS_Halt(1);
-} nullsys */
+} /*nullsys */
 
 void clockHandler2(int dev, void *arg)
 {
@@ -123,8 +122,8 @@ void syscallHandler(int dev, void *arg)
     isKernelMode("syscallHandler()");
     if (DEBUG2 && debugflag2)
 	USLOSS_Console("syscallHandler(): called\n");
-  /* 
-    //systemArgs *sys = (systemArgs*) arg;
+   
+    USLOSS_Sysargs *sys = (USLOSS_Sysargs*) arg;
     if (dev != USLOSS_SYSCALL_INT) {
     if (DEBUG2 && debugflag2) 
       USLOSS_Console("sysCallHandler(): called by other device, returning\n");
@@ -138,7 +137,7 @@ void syscallHandler(int dev, void *arg)
     }
 
     // nullsys
-    nullsys((systemArgs*)arg);*/
+    nullsys((USLOSS_Sysargs*)arg);
     enableInterrupts();
 
 } /* syscallHandler */

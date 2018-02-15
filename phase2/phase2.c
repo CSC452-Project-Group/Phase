@@ -46,7 +46,7 @@ int boxNum, slotNum;
 int nextBoxID = 0, nextSlotID = 0, nextProc = 0;
 
 //system call
-//void (*syscall_vec[MAXSYSCALLS])(systemArgs *args);
+void (*syscall_vec[MAXSYSCALLS])(USLOSS_Sysargs *args);
 
 
 
@@ -100,11 +100,11 @@ int start1(char *arg)
     Mbox[TERM+1] = MboxCreate(0, sizeof(int)); // terminal 2
     Mbox[TERM+2]= MboxCreate(0, sizeof(int)); // terminal 3
     Mbox[TERM+3] = MboxCreate(0, sizeof(int)); // terminal 4
-    /*
-    for (i = 0; i < MAXSYSCALLS; i++) {
+    
+    for (int i = 0; i < MAXSYSCALLS; i++) {
         syscall_vec[i] = nullsys;
     }
-    */
+    
     enableInterrupts();
 
     // Create a process for start2, then block on a join until start2 quits
