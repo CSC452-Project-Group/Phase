@@ -215,24 +215,24 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 	//USLOSS_Console("MboxSend: checking for errors\n");
 
 	if (MailBoxTable[mbox_id].status == INACTIVE) {
-		USLOSS_Console("MboxSend: mailbox %d is inactive\n", mbox_id);
+		USLOSS_Console("MboxSend(): mailbox %d is inactive\n", mbox_id);
 		return -1;
 	}
 
 	if (msg_size > MailBoxTable[mbox_id].slotSize) {
-		USLOSS_Console("MboxSend: message size %d is too large\n", msg_size);
+		USLOSS_Console("MboxSend(): message size %d is too large\n", msg_size);
 		return -1;
 	}
 
 	if (MailBoxTable[mbox_id].curSlots == MailBoxTable[mbox_id].totalSlots) {
-		USLOSS_Console("MboxSend: mailbox has no slots available\n");
+		USLOSS_Console("MboxSend(): mailbox has no slots available\n");
 		//enqueue(&MailBoxTable[mbox_id].bProcS, ); // TODO: finish this mthod call
 		blockMe(NONE);
 		disableInterrupts();
 	}
 
 	if (slotNum == MAXSLOTS) {
-		USLOSS_Console("MboxSend: No slots left\n");
+		USLOSS_Console("MboxSend(): No slots left\n");
 		USLOSS_Halt(1);
 	}
 
@@ -251,6 +251,10 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 	memcpy(&MailSlotTable[slot].message, &msg_ptr, msg_size);
 	MailSlotTable[slot].mboxID = mbox_id;
 	MailSlotTable[slot].messageLen = msg_size;
+
+	MailBoxTable[mbox_id].curSlots++;
+
+	slotNum++;
 
 	//USLOSS_Console("MboxSend: after memcpy\n");
 
@@ -271,6 +275,23 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
    ----------------------------------------------------------------------- */
 int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
 {
+	disableInterrupts();
+	isKernelMode("MboxRecieve");
+
+	// check for errors
+	if (MailBoxTable[mbox_id].status == INACTIVE) {
+		USLOSS_Console("MboxRecieve(): mailbox %d is inactive\n", mbox_id);
+		return -1;
+	}
+
+	// block proc if empty
+	if (MailBoxTable[mbox_id].curSlots == 0) {
+		// TODO: enqueue to blocked list
+		blockMe(NONE);
+	}
+
+	// copy message to the buffer
+
     return 0;
 } /* MboxReceive */
 
