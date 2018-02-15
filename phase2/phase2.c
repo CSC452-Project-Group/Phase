@@ -229,6 +229,69 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size)
     return 0;
 }
 
+int MboxCondReceive(int mbox_id, void *msg_ptr, int msg_size)
+{
+    return 0;
+}
+
+int MboxRelease(int mailboxID)
+{
+    disableInterrupts();
+    isKernelMode("MboxRelease()");
+
+    mailbox *mb = &MailBoxTable[mailboxID];    
+
+    //check if mailID is valid
+    if(mailboxID < 0 || mailboxID >= MAXMBOX){
+	if(DEBUG2 && debugflag2)
+	    USLOSS_Console("MboxRelease(): called with invalid mailboxID: %d, returning -1\n", mailboxID);
+	return -1;
+    }
+
+    //check if mailbox is in use
+    if(mb == NULL || mb->status == INACTIVE){
+        if(DEBUG2 && debugflag2)
+            USLOSS_Console("MboxRelease(): mailbox %d is already released, returning -1\n", mailboxID);
+        return -1;
+    }
+
+    //check if the process has been zapped
+    if(isZapped() || mb->status == INACTIVE){
+	if(DEBUG2 && debugflag2)
+            USLOSS_Console("MboxRelease(): process was zapped, returning -3\n");
+        return -3;
+    }
+
+    //remove all slots in the mailbox
+    while(mb->slotq.size > 0){
+	slotPtr slot = (slotPtr)dequeue(&mb->slotq);
+        InitialSlot(slot->slotID);
+    }
+
+    //release the maibox
+    InitialBox(mailboxID);
+    if(DEBUG2 && debugflag2){
+	USLOSS_Console("MboxRelease(): release mailbox %d\n", mailboxID);
+    }
+
+    //unblock processes blocked by receive
+    while(mb->bProcR.size > 0){
+	mboxProcPtr proc = (mboxProcPtr)dequeue(&mb->bProcR);
+        unblockProc(proc->pid);
+        disableInterrupts();
+    }
+
+    //unblock processes blocked by send
+    while(mb->bProcS.size > 0){
+        mboxProcPtr proc = (mboxProcPtr)dequeue(&mb->bProcS);
+        unblockProc(proc->pid);
+        disableInterrupts();
+    }
+
+    enableInterrupts();
+    return 0;
+}
+
 /*
  * Disables the interrupts.
  */
@@ -320,6 +383,7 @@ void* dequeue(queue* q){
     }
     else { /* TODO: handle different ID here, if it's for slot or process */
         if(q->ID == SLOTQUEUE)
+	    q->head = ((slotPtr)(q->head))->nextSlotPtr;
 	    q->head = ((slotPtr)(q->head))->nextSlotPtr;
 	else if(q->ID == PROCQUEUE)
 	    q->head = ((mboxProcPtr)(q->head))->nextMboxProc;
