@@ -291,8 +291,11 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
 	}
 
 	// copy message to the buffer
+	mailSlot * temp = NULL;
+	temp = dequeue(&(MailBoxTable[mbox_id].slotq));
+	memcpy(&msg_ptr, &(temp->message), temp->messageLen);
 
-    return 0;
+    return temp->messageLen;
 } /* MboxReceive */
 
 int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size)
@@ -455,7 +458,7 @@ void* dequeue(queue* q){
     else { /* TODO: handle different ID here, if it's for slot or process */
         if(q->ID == SLOTQUEUE)
 	    q->head = ((slotPtr)(q->head))->nextSlotPtr;
-	    q->head = ((slotPtr)(q->head))->nextSlotPtr;
+	    //q->head = ((slotPtr)(q->head))->nextSlotPtr;
 		if(q->ID == PROCQUEUE)
 	    q->head = ((mboxProcPtr)(q->head))->nextMboxProc;
     }
