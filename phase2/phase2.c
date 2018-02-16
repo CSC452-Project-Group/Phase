@@ -261,6 +261,15 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 
 	enqueue(&MailBoxTable[mbox_id].slotq, &MailSlotTable[curSlot%MAXSLOTS]);
 
+	// Unblock the first process in the list of processes waiting
+	queue *temp = &MailBoxTable[mbox_id].bProcR;
+	if (temp->size > 0) {
+		mboxProc *proc = NULL;
+		proc = dequeue(temp);
+
+		unblockProc(proc->pid);
+	}
+
     return 0;
 } /* MboxSend */
 
