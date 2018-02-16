@@ -471,6 +471,7 @@ void* dequeue(queue* q){
         if(q->ID == SLOTQUEUE)
 	    q->head = ((slotPtr)(q->head))->nextSlotPtr;
 	    //q->head = ((slotPtr)(q->head))->nextSlotPtr;
+
 		if(q->ID == PROCQUEUE)
 	    q->head = ((mboxProcPtr)(q->head))->nextMboxProc;
     }
