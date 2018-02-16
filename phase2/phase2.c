@@ -384,7 +384,7 @@ void* dequeue(queue* q){
     else { /* TODO: handle different ID here, if it's for slot or process */
         if(q->ID == SLOTQUEUE)
 	    q->head = ((slotPtr)(q->head))->nextSlotPtr;
-	    q->head = ((slotPtr)(q->head))->nextSlotPtr;
+	    //q->head = ((slotPtr)(q->head))->nextSlotPtr;
 	else if(q->ID == PROCQUEUE)
 	    q->head = ((mboxProcPtr)(q->head))->nextMboxProc;
     }
