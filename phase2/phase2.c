@@ -226,8 +226,13 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 
 	if (MailBoxTable[mbox_id].curSlots == MailBoxTable[mbox_id].totalSlots) {
 		USLOSS_Console("MboxSend(): mailbox has no slots available\n");
-		//enqueue(&MailBoxTable[mbox_id].bProcS, ); // TODO: finish this mthod call
-		blockMe(NONE);
+		mboxProc mproc;
+        	mproc.nextMboxProc = NULL;
+        	mproc.pid = getpid();
+        	mproc.msg_ptr = msg_ptr;
+        	mproc.msg_size = msg_size;
+		enqueue(&(MailBoxTable[mbox_id]).bProcS, &mproc); // TODO: finish this mthod call
+		blockMe(FULL);
 		disableInterrupts();
 	}
 
@@ -377,6 +382,7 @@ int MboxRelease(int mailboxID)
     enableInterrupts();
     return 0;
 }
+
 
 /*
  * Disables the interrupts.
