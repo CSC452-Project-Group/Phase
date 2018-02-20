@@ -19,7 +19,5 @@ Current Status: Feb 19 passed: 44, 38, 37, 36, 35, 34, 33, 31, 30, 25, 23(with d
 		failed: 13 - deadlock (involves waitdevice)
 				14 - deadlock (involves waitdevice)
 				21 - deadlock
-				24 - out of order - now segfualts
+				22 - I broke it somehow.
 				32 - deadlock (involves waitdevice)
-				42 - fill 50, free 10, fill 25
-				43 - similar to 42

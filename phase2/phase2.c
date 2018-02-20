@@ -327,7 +327,7 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
 {
 	disableInterrupts();
 	isKernelMode("MboxRecieve");
-  	USLOSS_Console("Mboxr() called\n");
+  	//USLOSS_Console("MboxRecieve() called\n");
 	// check for errors
 	if (MailBoxTable[mbox_id].status == INACTIVE) {
 		//USLOSS_Console("MboxRecieve(): mailbox %d is inactive\n", mbox_id);

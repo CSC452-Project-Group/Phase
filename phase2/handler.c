@@ -152,8 +152,8 @@ void syscallHandler(int dev, void *arg)
 int waitDevice(int ID, int unit, int *status){
     disableInterrupts();
     isKernelMode("waitDevice()");
-    USLOSS_Console("waitdevice() called\n");
-    USLOSS_Console("ID: %d, unit: %d\n", ID, unit);
+    //USLOSS_Console("waitdevice() called\n");
+   // USLOSS_Console("ID: %d, unit: %d\n", ID, unit);
     int check;
     if(ID == USLOSS_CLOCK_DEV){
 	check = CLOCK;
@@ -168,7 +168,7 @@ int waitDevice(int ID, int unit, int *status){
 	USLOSS_Console("waitDevice(): Invalid device type; %d. Halting...\n", ID);
         USLOSS_Halt(1);
     }
-    USLOSS_Console("unit: %d", unit);
+    //USLOSS_Console("unit: %d\n", unit);
     Procblocked++;
     int result = 0;
     // receieve
