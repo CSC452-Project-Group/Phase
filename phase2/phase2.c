@@ -220,19 +220,30 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 		return -1;
 	}
 
-	/*
+	
 	if (msg_size > MailBoxTable[mbox_id].slotSize) {
 		//USLOSS_Console("MboxSend(): message size %d is too large\n", msg_size);
 		return -1;
 	}
-	*/
+	
 
 	if (MailBoxTable[mbox_id].curSlots == MailBoxTable[mbox_id].totalSlots) {
 		//USLOSS_Console("MboxSend(): mailbox has no slots available\n");
+		
+		queue * waitq = &MailBoxTable[mbox_id].bProcR;
+		mboxProc * proc = waitq->head;
+		if (proc != NULL) {
+			memcpy(proc->msg_ptr, msg_ptr, msg_size);
+			proc->msg_size = msg_size;
+			unblockProc(proc->pid);
+			enableInterrupts();
+			return 0;
+		}
+
 		mboxProc mproc;
         	mproc.nextMboxProc = NULL;
         	mproc.pid = getpid();
-        	mproc.msg_ptr = msg_ptr;
+			memcpy(proc->msg_ptr, msg_ptr, msg_size);
         	mproc.msg_size = msg_size;
 		enqueue(&(MailBoxTable[mbox_id]).bProcS, &mproc);
 		blockMe(FULL);
@@ -319,11 +330,20 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
 		mboxProc mproc;
 		mproc.nextMboxProc = NULL;
 		mproc.pid = getpid();
-		mproc.msg_ptr = msg_ptr;
+		//mproc.msg_ptr = msg_ptr;
 		mproc.msg_size = msg_size;
 		enqueue(&(MailBoxTable[mbox_id]).bProcR, &mproc);
 		blockMe(NONE);
 		disableInterrupts();
+
+		if (MailBoxTable[mbox_id].curSlots == 0) {
+			if (mproc.msg_size > msg_size) {
+				return -1;
+			}
+			memcpy(msg_ptr, mproc.msg_ptr, mproc.msg_size);
+			dequeue(&(MailBoxTable[mbox_id]).bProcR);
+			return mproc.msg_size;
+		}
 	}
 
 	queue * slotq = NULL;

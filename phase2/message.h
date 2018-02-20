@@ -15,7 +15,7 @@ typedef struct mboxProc mboxProc;
 struct mboxProc {
     mboxProcPtr     nextMboxProc;
     int             pid;     // process ID
-    void            *msg_ptr; // where to put received message
+    char            msg_ptr[MAX_MESSAGE]; // where to put received message
     int             msg_size;
     slotPtr         messageReceived; // mail slot containing message we've received
 };
