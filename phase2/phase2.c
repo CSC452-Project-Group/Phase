@@ -140,7 +140,7 @@ void InitialSlot(int i)
     MailSlotTable[i].mboxID = -1;
     MailSlotTable[i].status = EMPTY;
     MailSlotTable[i].slotID = i;
-	MailSlotTable[i].message = NULL;
+	
 }
 
 
@@ -226,7 +226,7 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 	}
 
 	if (MailBoxTable[mbox_id].curSlots == MailBoxTable[mbox_id].totalSlots) {
-		USLOSS_Console("MboxSend(): mailbox has no slots available\n");
+		//USLOSS_Console("MboxSend(): mailbox has no slots available\n");
 		mboxProc mproc;
         	mproc.nextMboxProc = NULL;
         	mproc.pid = getpid();
@@ -234,8 +234,12 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
         	mproc.msg_size = msg_size;
 		enqueue(&(MailBoxTable[mbox_id]).bProcS, &mproc);
 		blockMe(FULL);
-		USLOSS_Console("mBoxSend(): process %d starting again\n", getpid());
+		//USLOSS_Console("mBoxSend(): process %d starting again\n", getpid());
 		disableInterrupts();
+	}
+
+	if (isZapped() || MailBoxTable[mbox_id].status == INACTIVE) {
+		return -3;
 	}
 
 	if (slotNum == MAXSLOTS) {
@@ -256,9 +260,9 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 	//USLOSS_Console("MboxSend: found a slot\n");
 
 	MailSlotTable[slot].status = USED;
-	USLOSS_Console("MboxSend(): memcpy '%s'\n", msg_ptr);
+	//USLOSS_Console("MboxSend(): memcpy '%s'\n", msg_ptr);
 	memcpy(MailSlotTable[slot].message, msg_ptr, msg_size);
-	USLOSS_Console("MboxSend(): memcpy'd '%s'\n", MailSlotTable[slot].message);
+	//USLOSS_Console("MboxSend(): memcpy'd '%s'\n", MailSlotTable[slot].message);
 	MailSlotTable[slot].mboxID = mbox_id;
 	MailSlotTable[slot].messageLen = msg_size;
 
@@ -266,11 +270,11 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 
 	slotNum++;
 
-	USLOSS_Console("MboxSend: num slots %d\n", MailBoxTable[mbox_id].curSlots);
+	//USLOSS_Console("MboxSend: num slots %d\n", MailBoxTable[mbox_id].curSlots);
 
 	enqueue(&MailBoxTable[mbox_id].slotq, &MailSlotTable[curSlot%MAXSLOTS]);
 
-	dumpSlots(mbox_id);
+	//dumpSlots(mbox_id);
 
 	// Unblock the first process in the list of processes waiting
 	queue *temp = &MailBoxTable[mbox_id].bProcR;
@@ -318,6 +322,10 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
 		enqueue(&(MailBoxTable[mbox_id]).bProcR, &mproc);
 		blockMe(NONE);
 		disableInterrupts();
+	}
+
+	if (isZapped() || MailBoxTable[mbox_id].status == INACTIVE) {
+		return -3;
 	}
 
 	// copy message to the buffer

@@ -45,7 +45,7 @@ struct mailSlot {
     // other items as needed...
     int       slotID;
     slotPtr   nextSlotPtr;
-    void      *message;
+    char      message[MAX_MESSAGE];
     int       messageLen;
 };
 
