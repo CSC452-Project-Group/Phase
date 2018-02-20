@@ -257,7 +257,7 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 
 	MailSlotTable[slot].status = USED;
 	USLOSS_Console("MboxSend(): memcpy '%s'\n", msg_ptr);
-	memcpy(MailSlotTable[slot].message, msg_ptr, msg_size);
+	memcpy(&MailSlotTable[slot].message, &msg_ptr, msg_size);
 	USLOSS_Console("MboxSend(): memcpy'd '%s'\n", MailSlotTable[slot].message);
 	MailSlotTable[slot].mboxID = mbox_id;
 	MailSlotTable[slot].messageLen = msg_size;
