@@ -13,7 +13,7 @@ extern void isKernelMode(char *);
 
 int Mbox[7];
 int Procblocked = 0;
-
+static int num = 0;
 // an error method to handle invalid syscalls 
 void nullsys(USLOSS_Sysargs *args)
 {
@@ -27,7 +27,11 @@ void clockHandler2(int dev, void *arg)
     isKernelMode("clockHandler2()");
     if (DEBUG2 && debugflag2)
 	USLOSS_Console("clockHandler2(): called\n");
-    
+    int time = 0;
+    int result = USLOSS_DeviceInput(USLOSS_CLOCK_DEV, 0, &time);
+    if(result != USLOSS_DEV_OK){
+	return;
+    }
     // check if it is clock device calling
     if(dev != USLOSS_CLOCK_DEV){
 	if (DEBUG2 && debugflag2)
@@ -35,16 +39,18 @@ void clockHandler2(int dev, void *arg)
 	    return;
     }
 
-    static int num = 0;
+    //static int num = 0;
     num++;
-    if(num == 5){
-	int status;
+    //int status = 0;
+    if(num >= 5){
+//	int status;
 //        USLOSS_DeviceInput(dev, 0, &status);
-	MboxCondSend(Mbox[CLOCK], &status, sizeof(int));
+	MboxCondSend(Mbox[CLOCK], &time, sizeof(int));
+       // MboxCondSend(0, &status, 4);
 	num = 0;
     }
-
-    timeSlice();
+    if(time-readCurStartTime() >= 100000)
+        timeSlice();
     enableInterrupts();
 
 } /* clockHandler */
@@ -146,11 +152,33 @@ void syscallHandler(int dev, void *arg)
 int waitDevice(int ID, int unit, int *status){
     disableInterrupts();
     isKernelMode("waitDevice()");
-    
-    if ( isZapped() )
-        return -1;
-    else{
-        MboxReceive(ID + unit, status, 4);
-        return 0;
+    USLOSS_Console("waitdevice() called\n");
+    USLOSS_Console("ID: %d, unit: %d\n", ID, unit);
+    int check;
+    if(ID == USLOSS_CLOCK_DEV){
+	check = CLOCK;
     }
-}
+    else if(ID == USLOSS_DISK_DEV){
+	check = DISK;
+    }
+    else if(ID == USLOSS_TERM_DEV){
+	check = TERM;
+    }
+    else{
+	USLOSS_Console("waitDevice(): Invalid device type; %d. Halting...\n", ID);
+        USLOSS_Halt(1);
+    }
+    USLOSS_Console("unit: %d", unit);
+    Procblocked++;
+    int result = 0;
+    // receieve
+    result = MboxReceive(Mbox[check+unit], status, sizeof(int));
+    Procblocked--;
+
+    //enableInterrupts();
+    //call iszapped to check the return value
+    if(result == -3)
+	return -1;
+    return 0;
+    //return isZapped() ? -1 : 0;
+} 
