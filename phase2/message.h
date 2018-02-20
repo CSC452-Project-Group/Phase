@@ -17,7 +17,7 @@ struct mboxProc {
     int             pid;     // process ID
     char            msg_ptr[MAX_MESSAGE]; // where to put received message
     int             msg_size;
-    slotPtr         messageReceived; // mail slot containing message we've received
+    int             messageReceived; // mail slot containing message we've received
 };
 
 struct queue {
@@ -73,5 +73,10 @@ union psrValues {
 //process Macro
 #define FULL     11
 #define NONE     12
+#define WAIT     13
+
+//for message recieved
+#define FALSE    0
+#define TRUE     1
 
 #endif

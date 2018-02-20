@@ -226,26 +226,35 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 		return -1;
 	}
 	
+	queue * waitq = &MailBoxTable[mbox_id].bProcR;
+	if (waitq != NULL) {
+		mboxProc * proc = waitq->head;
+		if (proc != NULL) {
+			while (proc->messageReceived == TRUE) {
+				proc = proc->nextMboxProc;
+			}
+			memcpy(proc->msg_ptr, msg_ptr, msg_size);
+			proc->msg_size = msg_size;
+			proc->messageReceived = TRUE;
+			unblockProc(proc->pid);
+			enableInterrupts();
+			if (proc->msg_size < msg_size) {
+				return -1;
+			}
+			return 0;
+		}
+		
+	}
 
 	if (MailBoxTable[mbox_id].curSlots == MailBoxTable[mbox_id].totalSlots) {
 		//USLOSS_Console("MboxSend(): mailbox has no slots available\n");
-		
-		queue * waitq = &MailBoxTable[mbox_id].bProcR;
-		mboxProc * proc = waitq->head;
-		if (proc != NULL) {
-			memcpy(proc->msg_ptr, msg_ptr, msg_size);
-			proc->msg_size = msg_size;
-			unblockProc(proc->pid);
-			enableInterrupts();
-			return 0;
-		}
-
 		mboxProc mproc;
         	mproc.nextMboxProc = NULL;
         	mproc.pid = getpid();
-			memcpy(proc->msg_ptr, msg_ptr, msg_size);
         	mproc.msg_size = msg_size;
+			mproc.messageReceived = FALSE;
 		enqueue(&(MailBoxTable[mbox_id]).bProcS, &mproc);
+		//dumpSlots(mbox_id);
 		blockMe(FULL);
 		//USLOSS_Console("mBoxSend(): process %d starting again\n", getpid());
 		disableInterrupts();
@@ -291,6 +300,7 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 
 	// Unblock the first process in the list of processes waiting
 	queue *temp = &MailBoxTable[mbox_id].bProcR;
+	//USLOSS_Console("======================%d\n", temp->size);
 	if (temp->size > 0) {
 		mboxProc *proc = NULL;
 		proc = dequeue(temp);
@@ -333,10 +343,14 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
 		//mproc.msg_ptr = msg_ptr;
 		mproc.msg_size = msg_size;
 		enqueue(&(MailBoxTable[mbox_id]).bProcR, &mproc);
+
 		blockMe(NONE);
 		disableInterrupts();
 
-		if (MailBoxTable[mbox_id].curSlots == 0) {
+		if (mproc.messageReceived == TRUE) {
+			//USLOSS_Console("MboxRecieve(): message recieved is TRUE\n");
+			//USLOSS_Console("MboxRecieve(): message size is %d\n", mproc.msg_size);
+			//USLOSS_Console("MboxRecieve(): buffer size is %d\n", msg_size);
 			if (mproc.msg_size > msg_size) {
 				return -1;
 			}
@@ -359,6 +373,7 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
 
 	// copy message to the buffer
 	mailSlot * temp = NULL;
+	int previousSlotNum = MailBoxTable[mbox_id].curSlots;
 	temp = dequeue(&(MailBoxTable[mbox_id].slotq));
 	MailBoxTable[mbox_id].curSlots--;
 	curSlot--;
@@ -370,13 +385,26 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
 
 	// Unblock the first process in the list of processes waiting
 	queue *box = &MailBoxTable[mbox_id].bProcS;
+	//USLOSS_Console("--------------------------%d\n", box->size);
 	if (box->size > 0) {
 		mboxProc *proc = NULL;
 		proc = dequeue(box);
 
 		//USLOSS_Console("MboxSend(): unblock proc %d", proc->pid);
 		unblockProc(proc->pid);
-		enableInterrupts();
+		//enableInterrupts();
+
+		if (previousSlotNum > MailBoxTable[mbox_id].curSlots) {
+			mboxProc mproc;
+			mproc.nextMboxProc = NULL;
+			mproc.pid = getpid();
+			//mproc.msg_ptr = msg_ptr;
+			mproc.msg_size = msg_size;
+			enqueue(&(MailBoxTable[mbox_id]).bProcR, &mproc);
+			//USLOSS_Console("+++++++++++++++++++++++++++++%d\n", (&MailBoxTable[mbox_id].bProcR)->size);
+			blockMe(WAIT);
+		}
+		
 	}
 
     return temp->messageLen;
@@ -686,7 +714,15 @@ void dumpSlots(int mbox_id) {
 	mailSlot * slot = temp->head;
 
 	while (slot != NULL) {
-		USLOSS_Console("----------------slot: %d, message: %s\n", slot->slotID, slot->message);
+		USLOSS_Console("----------slot: %d, message: %s\n", slot->slotID, slot->message);
 		slot = slot->nextSlotPtr;
+	}
+
+	queue * procq = &MailBoxTable[mbox_id].bProcS;
+	mboxProc * proc = procq->head;
+
+	while (proc != NULL) {
+		USLOSS_Console("----------------waiting: %d, message: %s\n", proc->pid, proc->msg_ptr);
+		proc = proc->nextMboxProc;
 	}
 }
