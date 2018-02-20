@@ -18,8 +18,8 @@ ______Feb 19 passed: 44, 38, 37, 36, 35, 34, 33, 31, 30, 25, 23(with different o
 ______Feb 20: <br />0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16, 17, 18, 19, 20, 22, 23
 	25, 26, 27, 28, 29, 30, 31, 33, 34, 35, 36, 37, 38, 39, 41, 42, 43, 44<br />
 ______failed:<br /> 13 - deadlock (involves waitdevice)
-				14 - deadlock (involves waitdevice)
-				21 - deadlock
-				22 - I broke it somehow.
-				32 - deadlock (involves waitdevice)
-				40 - still return -1
+				14 - deadlock (involves waitdevice)<br />
+				21 - deadlock<br />
+				22 - I broke it somehow.<br />
+				32 - deadlock (involves waitdevice)<br />
+				40 - still return -1<br />
