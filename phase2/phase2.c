@@ -216,14 +216,16 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 	//USLOSS_Console("MboxSend: checking for errors\n");
 
 	if (MailBoxTable[mbox_id].status == INACTIVE) {
-		USLOSS_Console("MboxSend(): mailbox %d is inactive\n", mbox_id);
+		//USLOSS_Console("MboxSend(): mailbox %d is inactive\n", mbox_id);
 		return -1;
 	}
 
+	/*
 	if (msg_size > MailBoxTable[mbox_id].slotSize) {
 		//USLOSS_Console("MboxSend(): message size %d is too large\n", msg_size);
 		return -1;
 	}
+	*/
 
 	if (MailBoxTable[mbox_id].curSlots == MailBoxTable[mbox_id].totalSlots) {
 		//USLOSS_Console("MboxSend(): mailbox has no slots available\n");
@@ -243,7 +245,7 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 	}
 
 	if (slotNum == MAXSLOTS) {
-		USLOSS_Console("MboxSend(): No slots left\n");
+		//USLOSS_Console("MboxSend(): No slots left\n");
 		USLOSS_Halt(1);
 	}
 
@@ -307,7 +309,7 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
 
 	// check for errors
 	if (MailBoxTable[mbox_id].status == INACTIVE) {
-		USLOSS_Console("MboxRecieve(): mailbox %d is inactive\n", mbox_id);
+		//USLOSS_Console("MboxRecieve(): mailbox %d is inactive\n", mbox_id);
 		return -1;
 	}
 
@@ -322,6 +324,13 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
 		enqueue(&(MailBoxTable[mbox_id]).bProcR, &mproc);
 		blockMe(NONE);
 		disableInterrupts();
+	}
+
+	queue * slotq = NULL;
+	slotq = &MailBoxTable[mbox_id].slotq;
+	mailSlot * slot = slotq->head;
+	if (slot != NULL && msg_size < slot->messageLen) {
+		return -1;
 	}
 
 	if (isZapped() || MailBoxTable[mbox_id].status == INACTIVE) {
@@ -355,12 +364,119 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
 
 int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size)
 {
-    return 0;
+	disableInterrupts();
+	isKernelMode("MboxSend");
+
+	//USLOSS_Console("MboxSend: checking for errors\n");
+
+	if (MailBoxTable[mbox_id].status == INACTIVE) {
+		//USLOSS_Console("MboxSend(): mailbox %d is inactive\n", mbox_id);
+		return -1;
+	}
+
+	if (msg_size > MailBoxTable[mbox_id].slotSize) {
+		//USLOSS_Console("MboxSend(): message size %d is too large\n", msg_size);
+		return -1;
+	}
+
+	if (MailBoxTable[mbox_id].curSlots == MailBoxTable[mbox_id].totalSlots) {
+		return -2;
+	}
+
+	if (isZapped() || MailBoxTable[mbox_id].status == INACTIVE) {
+		return -3;
+	}
+
+	if (slotNum == MAXSLOTS) {
+		return -2;
+	}
+
+	//USLOSS_Console("MboxSend: after checking for errors\n");
+
+	// Find an unused slot in the slot table
+	while (MailSlotTable[curSlot%MAXSLOTS].status == USED) {
+		curSlot++;
+	}
+	int slot = curSlot % MAXSLOTS;
+
+	//USLOSS_Console("MboxSend(): adding to slot %d\n", slot);
+
+	//USLOSS_Console("MboxSend: found a slot\n");
+
+	MailSlotTable[slot].status = USED;
+	//USLOSS_Console("MboxSend(): memcpy '%s'\n", msg_ptr);
+	memcpy(MailSlotTable[slot].message, msg_ptr, msg_size);
+	//USLOSS_Console("MboxSend(): memcpy'd '%s'\n", MailSlotTable[slot].message);
+	MailSlotTable[slot].mboxID = mbox_id;
+	MailSlotTable[slot].messageLen = msg_size;
+
+	MailBoxTable[mbox_id].curSlots++;
+
+	slotNum++;
+
+	//USLOSS_Console("MboxSend: num slots %d\n", MailBoxTable[mbox_id].curSlots);
+
+	enqueue(&MailBoxTable[mbox_id].slotq, &MailSlotTable[curSlot%MAXSLOTS]);
+
+	//dumpSlots(mbox_id);
+
+	// Unblock the first process in the list of processes waiting
+	queue *temp = &MailBoxTable[mbox_id].bProcR;
+	if (temp->size > 0) {
+		mboxProc *proc = NULL;
+		proc = dequeue(temp);
+
+		//USLOSS_Console("MboxSend(): unblock proc %d", proc->pid);
+		unblockProc(proc->pid);
+		enableInterrupts();
+	}
+
+	return 0;
 }
 
 int MboxCondReceive(int mbox_id, void *msg_ptr, int msg_size)
 {
-    return 0;
+	disableInterrupts();
+	isKernelMode("MboxRecieve");
+
+	// check for errors
+	if (MailBoxTable[mbox_id].status == INACTIVE) {
+		//USLOSS_Console("MboxRecieve(): mailbox %d is inactive\n", mbox_id);
+		return -1;
+	}
+
+	// block proc if empty
+	if (MailBoxTable[mbox_id].curSlots == 0) {
+		return -2;
+	}
+
+	if (isZapped() || MailBoxTable[mbox_id].status == INACTIVE) {
+		return -3;
+	}
+
+	// copy message to the buffer
+	mailSlot * temp = NULL;
+	temp = dequeue(&(MailBoxTable[mbox_id].slotq));
+	MailBoxTable[mbox_id].curSlots--;
+	curSlot--;
+	//USLOSS_Console("MboxRecieve(): message to memcpy '%s'\n", temp->message);
+	memcpy(msg_ptr, temp->message, temp->messageLen);
+	//USLOSS_Console("MboxRecieve(): message memcpy'd `%s'\n", msg_ptr);
+
+	InitialSlot(temp->slotID);
+
+	// Unblock the first process in the list of processes waiting
+	queue *box = &MailBoxTable[mbox_id].bProcS;
+	if (box->size > 0) {
+		mboxProc *proc = NULL;
+		proc = dequeue(box);
+
+		//USLOSS_Console("MboxSend(): unblock proc %d", proc->pid);
+		unblockProc(proc->pid);
+		enableInterrupts();
+	}
+
+	return temp->messageLen;
 }
 
 int MboxRelease(int mailboxID)
