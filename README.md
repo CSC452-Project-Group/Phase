@@ -21,3 +21,4 @@ Current Status: Feb 19 passed: 44, 38, 37, 36, 35, 34, 33, 31, 30, 25, 23(with d
 				21 - deadlock
 				22 - I broke it somehow.
 				32 - deadlock (involves waitdevice)
+				40 - still return -1
