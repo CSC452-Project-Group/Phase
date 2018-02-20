@@ -17,7 +17,7 @@ int Procblocked = 0;
 // an error method to handle invalid syscalls 
 void nullsys(USLOSS_Sysargs *args)
 {
-    USLOSS_Console("nullsys(): Invalid syscall. Halting...\n");
+    USLOSS_Console("nullsys(): Invalid syscall %d. Halting...\n", args->number);
     USLOSS_Halt(1);
 } /*nullsys */
 
@@ -146,28 +146,11 @@ void syscallHandler(int dev, void *arg)
 int waitDevice(int ID, int unit, int *status){
     disableInterrupts();
     isKernelMode("waitDevice()");
-
-    int check;
-    if(ID == USLOSS_CLOCK_DEV){
-	check = CLOCK;
-    }
-    if(ID == USLOSS_DISK_DEV){
-	check = DISK;
-    }
-    if(ID == USLOSS_TERM_DEV){
-	check = TERM;
-    }
+    
+    if ( isZapped() )
+        return -1;
     else{
-	USLOSS_Console("waitDevice(): Invalid device type; %d. Halting...\n", ID);
-        USLOSS_Halt(1);
+        MboxReceive(ID + unit, status, 4);
+        return 0;
     }
-
-    Procblocked++;
-    // receieve
-    MboxReceive(Mbox[check+unit], status, sizeof(int));
-    Procblocked--;
-
-    enableInterrupts();
-    //call iszapped to check the return value
-    return isZapped() ? -1 : 0;
 }

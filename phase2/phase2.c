@@ -221,7 +221,7 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 	}
 
 	if (msg_size > MailBoxTable[mbox_id].slotSize) {
-		USLOSS_Console("MboxSend(): message size %d is too large\n", msg_size);
+		//USLOSS_Console("MboxSend(): message size %d is too large\n", msg_size);
 		return -1;
 	}
 
