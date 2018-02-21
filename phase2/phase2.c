@@ -330,7 +330,7 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
   //	USLOSS_Console("MboxRecieve() called\n");
 	// check for errors
 	if (MailBoxTable[mbox_id].status == INACTIVE) {
-		USLOSS_Console("MboxRecieve(): mailbox %d is inactive\n", mbox_id);
+		//USLOSS_Console("MboxRecieve(): mailbox %d is inactive\n", mbox_id);
 		return -1;
 	}
 
@@ -419,12 +419,12 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size)
 	//USLOSS_Console("MboxSend: checking for errors\n");
 
 	if (MailBoxTable[mbox_id].status == INACTIVE) {
-		USLOSS_Console("MboxSend(): mailbox %d is inactive\n", mbox_id);
+		//USLOSS_Console("MboxSend(): mailbox %d is inactive\n", mbox_id);
 		return -1;
 	}
 
 	if (msg_size > MailBoxTable[mbox_id].slotSize) {
-		USLOSS_Console("MboxSend(): message size %d is too large\n", msg_size);
+		//USLOSS_Console("MboxSend(): message size %d is too large\n", msg_size);
 		return -1;
 	}
 
@@ -434,12 +434,12 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size)
 	}*/
 
 	if (isZapped() || MailBoxTable[mbox_id].status == INACTIVE) {
-		USLOSS_Console("MboxSend(): status is INACTIVE\n");
+		//USLOSS_Console("MboxSend(): status is INACTIVE\n");
 		return -3;
 	}
 
 	if (slotNum == MAXSLOTS) {
-		USLOSS_Console("MboxSend(): slotNum %d is too large\n", slotNum);
+		//USLOSS_Console("MboxSend(): slotNum %d is too large\n", slotNum);
 		return -2;
 	}
 
