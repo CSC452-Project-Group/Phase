@@ -29,7 +29,7 @@ void clockHandler2(int dev, void *arg)
 	USLOSS_Console("clockHandler2(): called\n");
     int time = 0;
     int result = USLOSS_DeviceInput(USLOSS_CLOCK_DEV, 0, &time);
-    if(result != USLOSS_DEV_OK){
+    if(result == USLOSS_DEV_INVALID){
 	return;
     }
     // check if it is clock device calling
@@ -42,7 +42,7 @@ void clockHandler2(int dev, void *arg)
     //static int num = 0;
     num++;
     //int status = 0;
-    if(num >= 5){
+    if(num == 5){
 //	int status;
 //        USLOSS_DeviceInput(dev, 0, &status);
 	MboxCondSend(Mbox[CLOCK], &time, sizeof(int));
@@ -170,10 +170,11 @@ int waitDevice(int ID, int unit, int *status){
     }
     //USLOSS_Console("unit: %d\n", unit);
     Procblocked++;
+    
     int result = 0;
     // receieve
     result = MboxReceive(Mbox[check+unit], status, sizeof(int));
-    Procblocked--;
+    //Procblocked--;
 
     //enableInterrupts();
     //call iszapped to check the return value

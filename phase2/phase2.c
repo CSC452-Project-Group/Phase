@@ -327,30 +327,31 @@ int MboxReceive(int mbox_id, void *msg_ptr, int msg_size)
 {
 	disableInterrupts();
 	isKernelMode("MboxRecieve");
-  	//USLOSS_Console("MboxRecieve() called\n");
+  //	USLOSS_Console("MboxRecieve() called\n");
 	// check for errors
 	if (MailBoxTable[mbox_id].status == INACTIVE) {
-		//USLOSS_Console("MboxRecieve(): mailbox %d is inactive\n", mbox_id);
+		USLOSS_Console("MboxRecieve(): mailbox %d is inactive\n", mbox_id);
 		return -1;
 	}
 
 	// block proc if empty
 	if (MailBoxTable[mbox_id].curSlots == 0) {
-		//USLOSS_Console("MboxSend(): mailbox has no slots available\n");
+	//	USLOSS_Console("MboxSend(): mailbox has no slots available\n");
 		mboxProc mproc;
 		mproc.nextMboxProc = NULL;
 		mproc.pid = getpid();
 		//mproc.msg_ptr = msg_ptr;
 		mproc.msg_size = msg_size;
 		enqueue(&(MailBoxTable[mbox_id]).bProcR, &mproc);
-
+	//	USLOSS_Console("before blockme() in receive\n");
 		blockMe(NONE);
+	//	USLOSS_Console("After blockme() in receive\n");
 		disableInterrupts();
 
 		if (mproc.messageReceived == TRUE) {
-			//USLOSS_Console("MboxRecieve(): message recieved is TRUE\n");
-			//USLOSS_Console("MboxRecieve(): message size is %d\n", mproc.msg_size);
-			//USLOSS_Console("MboxRecieve(): buffer size is %d\n", msg_size);
+		//	USLOSS_Console("MboxRecieve(): message recieved is TRUE\n");
+		//	USLOSS_Console("MboxRecieve(): message size is %d\n", mproc.msg_size);
+		//	USLOSS_Console("MboxRecieve(): buffer size is %d\n", msg_size);
 			if (mproc.msg_size > msg_size) {
 				return -1;
 			}
@@ -418,24 +419,27 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size)
 	//USLOSS_Console("MboxSend: checking for errors\n");
 
 	if (MailBoxTable[mbox_id].status == INACTIVE) {
-		//USLOSS_Console("MboxSend(): mailbox %d is inactive\n", mbox_id);
+		USLOSS_Console("MboxSend(): mailbox %d is inactive\n", mbox_id);
 		return -1;
 	}
 
 	if (msg_size > MailBoxTable[mbox_id].slotSize) {
-		//USLOSS_Console("MboxSend(): message size %d is too large\n", msg_size);
+		USLOSS_Console("MboxSend(): message size %d is too large\n", msg_size);
 		return -1;
 	}
 
-	if (MailBoxTable[mbox_id].curSlots == MailBoxTable[mbox_id].totalSlots) {
+	/*if (MailBoxTable[mbox_id].curSlots == MailBoxTable[mbox_id].totalSlots) {
+		USLOSS_Console("MboxSend(): curslot size %d is too large\n", msg_size);
 		return -2;
-	}
+	}*/
 
 	if (isZapped() || MailBoxTable[mbox_id].status == INACTIVE) {
+		USLOSS_Console("MboxSend(): status is INACTIVE\n");
 		return -3;
 	}
 
 	if (slotNum == MAXSLOTS) {
+		USLOSS_Console("MboxSend(): slotNum %d is too large\n", slotNum);
 		return -2;
 	}
 
@@ -473,12 +477,11 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size)
 	if (temp->size > 0) {
 		mboxProc *proc = NULL;
 		proc = dequeue(temp);
-
-		//USLOSS_Console("MboxSend(): unblock proc %d", proc->pid);
+  		Procblocked--;
+	//	USLOSS_Console("MboxSend(): unblock proc %d", proc->pid);
 		unblockProc(proc->pid);
 		enableInterrupts();
 	}
-
 	return 0;
 }
 
@@ -702,7 +705,8 @@ int check_io(void)
 {
     if (DEBUG2 && debugflag2)
 	USLOSS_Console("check_io(): called\n");
-    return 0;
+//    USLOSS_Console("procblocked: %d", Procblocked);
+    return Procblocked > 0 ? 1 : 0;
 }
 
 void dumpSlots(int mbox_id) {
