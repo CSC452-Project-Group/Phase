@@ -13,6 +13,7 @@ extern void isKernelMode(char *);
 
 int Mbox[7];
 int Procblocked = 0;
+int condition = 0;
 static int num = 0;
 // an error method to handle invalid syscalls 
 void nullsys(USLOSS_Sysargs *args)
@@ -45,12 +46,14 @@ void clockHandler2(int dev, void *arg)
     if(num == 5){
 //	int status;
 //        USLOSS_DeviceInput(dev, 0, &status);
+	condition = 1;
 	MboxCondSend(Mbox[CLOCK], &time, sizeof(int));
        // MboxCondSend(0, &status, 4);
 	num = 0;
     }
     if(time-readCurStartTime() >= 100000)
         timeSlice();
+    condition = 0;
     enableInterrupts();
 
 } /* clockHandler */
@@ -84,7 +87,9 @@ void diskHandler(int dev, void *arg)
     }
 
     // Condition send
+    condition = 1;
     MboxCondSend(Mbox[DISK+unit], &status, sizeof(int));
+    condition = 0;
     enableInterrupts();
 } /* diskHandler */
 
@@ -117,7 +122,9 @@ void termHandler(int dev, void *arg)
     }
 
     // Condition send
+    condition = 1;
     MboxCondSend(Mbox[TERM+unit], &status, sizeof(int));
+    condition = 0;
     enableInterrupts();
 } /* termHandler */
 

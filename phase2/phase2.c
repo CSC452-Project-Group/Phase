@@ -428,10 +428,11 @@ int MboxCondSend(int mbox_id, void *msg_ptr, int msg_size)
 		return -1;
 	}
 
-	/*if (MailBoxTable[mbox_id].curSlots == MailBoxTable[mbox_id].totalSlots) {
-		USLOSS_Console("MboxSend(): curslot size %d is too large\n", msg_size);
+	if ((MailBoxTable[mbox_id].curSlots == MailBoxTable[mbox_id].totalSlots) && condition == 0) {
+	//	USLOSS_Console("condition: %d", condition);
+	//	USLOSS_Console("MboxSend(): curslot size %d is too large\n", msg_size);
 		return -2;
-	}*/
+	}
 
 	if (isZapped() || MailBoxTable[mbox_id].status == INACTIVE) {
 		//USLOSS_Console("MboxSend(): status is INACTIVE\n");
