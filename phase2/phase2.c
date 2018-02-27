@@ -234,11 +234,12 @@ int MboxSend(int mbox_id, void *msg_ptr, int msg_size)
 				proc = proc->nextMboxProc;
 			}
 			memcpy(proc->msg_ptr, msg_ptr, msg_size);
+			int size = proc->msg_size;
 			proc->msg_size = msg_size;
 			proc->messageReceived = TRUE;
 			unblockProc(proc->pid);
 			enableInterrupts();
-			if (proc->msg_size < msg_size) {
+			if (size < msg_size) {
 				return -1;
 			}
 			return 0;
