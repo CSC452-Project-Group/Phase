@@ -23,3 +23,6 @@ ______failed:<br />
 				40 - still return -1<br />
 ______Feb 21:<br /> failed:<br /> 10<br />11<br />12<br />21<br />22<br />40<br />41<br />
 ______Feb 22:<br /> failed:<br /> 21<br />22<br /> 40<br />
+
+## phase3
+	TODO: Start with spawn, need to be able to create a user level process first
