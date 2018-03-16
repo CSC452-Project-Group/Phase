@@ -21,6 +21,8 @@ int spawnReal(char *, int(*)(char *), char *, int, int);
 int spawnLaunch(char *);
 void terminate(USLOSS_Sysargs *);
 void terminateReal(int);
+void wait(USLOSS_Sysargs *);
+int waitReal(int *);
 void getTimeOfDay(USLOSS_Sysargs *);
 void cpuTime(USLOSS_Sysargs *);
 void getPID(USLOSS_Sysargs *);
@@ -131,13 +133,13 @@ void spawn(USLOSS_Sysargs *args)
     int (*func) (char*) = args->arg1;
     char *arg = args->arg2;
     int stackSize = (int)((long)args->arg3);
-    int priority = (int) ((long)args->arg4);
+    int priority = (int)((long)args->arg4);
     char *name = (char*) (args->arg5);
 
     USLOSS_Console("spawn(): args are: name = %s, stack size = %d, priority = %d\n", name, stackSize, priority);
 
-    int pid = spawnReal(name, func, arg, stackSize, priority);
-    int status = 0;
+    long pid = spawnReal(name, func, arg, stackSize, priority);
+    long status = 0;
 
     USLOSS_Console("spawn(): spawnd pid %d\n", pid);
 
@@ -149,8 +151,8 @@ void spawn(USLOSS_Sysargs *args)
     setUserMode();
 
     // set values for Spawn
-    args->arg1 = (void*) ((long)pid);
-    args->arg4 = (void*) ((long) status);
+    args->arg1 = (void *)pid;
+    args->arg4 = (void *)status;
 }
 
 int spawnReal(char *name, int (*func)(char*), char *arg, int stackSize, int priority)
@@ -217,6 +219,37 @@ int spawnLaunch(char *startArg) {
     return 0;
 }
 
+void wait(USLOSS_Sysargs *args)
+{
+    isKernelMode("wait");
+
+    int *status = args->arg2;
+    int pid = waitReal(status);
+
+    USLOSS_Console("wait(): joined with child pid = %d, status = %d\n", pid, *status);
+
+    args->arg1 = (void *) ((long)(pid));
+    args->arg2 = (void *) ((long)*status);
+    args->arg4 = (void *) (0);
+
+    // terminate self if zapped
+    if (isZapped())
+        terminateReal(1); 
+
+    // switch back to user mode
+    setUserMode();
+}
+
+int waitReal(int *status) 
+{
+    isKernelMode("waitReal");
+
+    USLOSS_Console("in waitReal\n");
+    int pid = join(status);
+    return pid;
+}
+
+
 /* initializes proc struct */
 void initProc(int pid) {
     isKernelMode("initProc"); 
@@ -249,7 +282,8 @@ void terminate(USLOSS_Sysargs *args)
     isKernelMode("terminate");
 
     int status = (int)((long)args->arg1);
-	terminateReal(status);
+    //int status = (int)(args->arg1);
+    terminateReal(status);
     // switch back to user mode
     setUserMode();
 }
@@ -280,13 +314,16 @@ void semCreate (USLOSS_Sysargs *args)
     isKernelMode("semCreate");
 
     int val = (long) args->arg1;
+    //int val = args->arg1;
     if(val < 0 || semNum == MAXSEMS){
 	args->arg4 = (void*) (long) -1;
+       // args->arg4 = (void*) -1;
     }
     else{
 	semNum++;
 	int temp = semCreateHelp(val);
 	args->arg1 = (void*) (long) temp;
+        //args->arg1 = (void*) temp;
 	args->arg4 = 0;
     }
 
@@ -333,7 +370,13 @@ int semCreateHelp(int value) {
 void getTimeOfDay (USLOSS_Sysargs *args)
 {
     isKernelMode("getTimeOfDay");
-    *((int *)(args->arg1)) = USLOSS_Clock();
+    int time = 0;
+    int check = USLOSS_DeviceInput(USLOSS_CLOCK_INT, 0, &time);
+    if(check == USLOSS_DEV_INVALID){
+        USLOSS_Console("getTimeOfDay(): check invalid, returning\n");
+        return;
+    }
+    *((int *)(args->arg1)) = time;
 }
 
 /* sysArgs: CPU time */
@@ -370,7 +413,11 @@ void isKernelMode(char *name)
 /* switch to user mode*/
 void setUserMode()
 {
-    USLOSS_PsrSet( USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_MODE );
+    int result = USLOSS_PsrSet( USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_MODE );
+    if(result == USLOSS_DEV_INVALID){
+	USLOSS_Console("diskHandler(): unit number invalid, returning\n");
+            return;
+    }
 }
 
 /* ------------------------------------------------------------------------
