@@ -30,8 +30,11 @@ void nullsys3(USLOSS_Sysargs *);
 void semCreate(USLOSS_Sysargs *);
 int semCreateHelp(int);
 void semP(USLOSS_Sysargs *);
+void semPReal(int);
 void semV(USLOSS_Sysargs *);
+void semVReal(int);
 void semFree(USLOSS_Sysargs *);
+int semFreeReal(int); 
 /* ---------------------------- Globals -------------------------------*/
 void (*syscall_vec[MAXSYSCALLS])(USLOSS_Sysargs *args);
 semaphore SemTable[MAXSEMS];
@@ -365,6 +368,166 @@ int semCreateHelp(int value) {
 
     return SemTable[i].id;
 }
+
+void semP(USLOSS_Sysargs *args)
+{
+    isKernelMode("semP");
+
+	int handle = (long) args->arg1;
+
+	if (handle < 0) 
+		args->arg4 = (void*) (long) -1;
+	else {
+		args->arg4 = 0;
+        semPReal(handle);
+    }
+
+	if (isZapped()) {
+		terminateReal(0);
+	}
+	else {
+		setUserMode();
+	}
+}
+
+void semPReal(int handle) {
+    isKernelMode("semPReal");
+
+    // get mutex on this semaphore
+	MboxSend(SemTable[handle].mutex_mBoxID, NULL, 0);
+
+    // block if value is 0
+	if (SemTable[handle].value == 0) {
+		enq3(&SemTable[handle].blockedProcs, &ProcTable3[getpid()%MAXPROC]);
+		MboxReceive(SemTable[handle].mutex_mBoxID, NULL, 0);
+
+		int result = MboxReceive(SemTable[handle].priv_mBoxID, NULL, 0);
+
+        // terminate if the semaphore freed while we were blocked
+        if (SemTable[handle].id < 0)
+            terminateReal(1);
+
+        // get mutex again when we unblock
+		MboxSend(SemTable[handle].mutex_mBoxID, NULL, 0);
+
+		if (result < 0) {
+			USLOSS_Console("semP(): bad receive");
+		}
+	}
+
+    else {
+        SemTable[handle].value -= 1 ;
+
+        int result = MboxReceive(SemTable[handle].priv_mBoxID, NULL, 0);
+        if (result < 0) {
+            USLOSS_Console("semP(): bad receive");
+        }
+    }
+
+
+	MboxReceive(SemTable[handle].mutex_mBoxID, NULL, 0);
+}
+
+void semV(USLOSS_Sysargs *args)
+{
+    isKernelMode("semV");
+
+	int handle = (long) args->arg1;
+
+	if (handle < 0) 
+		args->arg4 = (void*) (long) -1;
+	else
+		args->arg4 = 0;
+
+	semVReal(handle);
+
+	if (isZapped()) {
+		terminateReal(0);
+	}
+	else {
+		setUserMode();
+	}
+}
+
+void semVReal(int handle) {
+    isKernelMode("semVReal");
+
+	MboxSend(SemTable[handle].mutex_mBoxID, NULL, 0);
+
+    // unblock blocked proc
+	if (SemTable[handle].blockedProcs.size > 0) {
+		deq3(&SemTable[handle].blockedProcs);
+
+		MboxReceive(SemTable[handle].mutex_mBoxID, NULL, 0); // need to receive on mutex so semP can send right after receiving on privmbox
+
+		MboxSend(SemTable[handle].priv_mBoxID, NULL, 0);
+
+		MboxSend(SemTable[handle].mutex_mBoxID, NULL, 0);
+	}
+	else {
+		SemTable[handle].value += 1 ;
+	}
+
+	MboxReceive(SemTable[handle].mutex_mBoxID, NULL, 0);
+}
+
+
+void semFree(USLOSS_Sysargs *args)
+{
+    isKernelMode("semFree");
+
+	int handle = (long) args->arg1;
+
+	if (handle < 0) 
+		args->arg4 = (void*) (long) -1;
+	else {
+        args->arg4 = 0;
+        int value = semFreeReal(handle);
+        args->arg4 = (void*) (long) value;
+    }
+
+	if (isZapped()) {
+		terminateReal(0);
+	}
+	else {
+		setUserMode();
+	}
+}
+
+int semFreeReal(int handle) {
+    isKernelMode("semFreeReal");
+
+    int mutexID = SemTable[handle].mutex_mBoxID;
+    MboxSend(mutexID, NULL, 0);
+
+    int privID = SemTable[handle].priv_mBoxID;
+
+    SemTable[handle].id = -1;
+    SemTable[handle].value = -1;
+    SemTable[handle].startingValue = -1;
+    SemTable[handle].priv_mBoxID = -1;
+    SemTable[handle].mutex_mBoxID = -1;
+    semNum--;
+
+    // terminate procs waiting on this semphore
+    if (SemTable[handle].blockedProcs.size > 0) {
+        while (SemTable[handle].blockedProcs.size > 0) {
+            deq3(&SemTable[handle].blockedProcs);
+            int result = MboxSend(privID, NULL, 0);
+            if (result < 0) {
+                USLOSS_Console("semFreeReal(): send error");
+            }
+        }
+        MboxReceive(mutexID, NULL, 0);
+        return 1;
+    }
+
+	else {
+		MboxReceive(mutexID, NULL, 0);
+		return 0;
+	}
+}
+
 
 /* sysArgs: getTimeOf Day */
 void getTimeOfDay (USLOSS_Sysargs *args)
