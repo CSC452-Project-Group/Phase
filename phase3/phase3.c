@@ -18,9 +18,20 @@ procPtr3 peek3(procQueue*);
 void removeChild3(procQueue*, procPtr3);
 void spawn(USLOSS_Sysargs *);
 int spawnReal(char *, int(*)(char *), char *, int, int);
+int spawnLaunch(char *);
 void terminate(USLOSS_Sysargs *);
 void terminateReal(int);
+void getTimeOfDay(USLOSS_Sysargs *);
+void cpuTime(USLOSS_Sysargs *);
+void getPID(USLOSS_Sysargs *);
+void nullsys3(USLOSS_Sysargs *);
+void semCreate(USLOSS_Sysargs *);
+int semCreateHelp(int);
+void semP(USLOSS_Sysargs *);
+void semV(USLOSS_Sysargs *);
+void semFree(USLOSS_Sysargs *);
 /* ---------------------------- Globals -------------------------------*/
+void (*syscall_vec[MAXSYSCALLS])(USLOSS_Sysargs *args);
 semaphore SemTable[MAXSEMS];
 procStruct3 ProcTable3[MAXPROC];
 int semNum;
@@ -121,7 +132,7 @@ void spawn(USLOSS_Sysargs *args)
     char *arg = args->arg2;
     int stackSize = (int)((long)args->arg3);
     int priority = (int) ((long)args->arg4);
-    char name = (char*) (args->arg5);
+    char *name = (char*) (args->arg5);
 
     USLOSS_Console("spawn(): args are: name = %s, stack size = %d, priority = %d\n", name, stackSize, priority);
 
@@ -142,7 +153,7 @@ void spawn(USLOSS_Sysargs *args)
     args->arg4 = (void*) ((long) status);
 }
 
-int spawnReal(char *name, int (*func)(char*) , char *arg, int stackSize, int priority)
+int spawnReal(char *name, int (*func)(char*), char *arg, int stackSize, int priority)
 {
     isKernelMode("spawnReal");
 
@@ -168,6 +179,42 @@ int spawnReal(char *name, int (*func)(char*) , char *arg, int stackSize, int pri
 
     MboxCondSend(child->mboxID, 0, 0);
     return pid;
+}
+
+/* Purpose: launches user mode processes and terminates it */
+int spawnLaunch(char *startArg) {
+    isKernelMode("spawnLaunch");
+
+    USLOSS_Console("spawnLaunch(): launched pid = %d\n", getpid());
+
+    // terminate self if zapped
+    if (isZapped())
+        terminateReal(1); 
+
+    // get the proc info
+    procPtr3 proc = &ProcTable3[getpid() % MAXPROC]; 
+
+    // if spawnReal hasn't done it yet, set up proc table entry
+    if (proc->pid < 0) {
+        USLOSS_Console("spawnLaunch(): initializing proc table entry for pid %d\n", getpid());
+        initProc(getpid());
+
+        // block until spawnReal is done
+        MboxReceive(proc->mboxID, 0, 0);
+    }
+
+    // switch to user mode
+    setUserMode();
+
+    USLOSS_Console("spawnLaunch(): starting process %d...\n", proc->pid);
+
+    // call the function to start the process
+    int status = proc->startFunc(startArg);
+
+    USLOSS_Console("spawnLaunch(): terminating process %d with status %d\n", proc->pid, status);
+
+    Terminate(status); // terminate the process if it hasn't terminated itself
+    return 0;
 }
 
 /* initializes proc struct */
@@ -224,6 +271,91 @@ void terminateReal(int status)
     quit(status);
 }
 
+/* ------------------------------------------------------------------------
+  Below are functions that manipulate the semaphore.
+   ----------------------------------------------------------------------- */
+
+void semCreate (USLOSS_Sysargs *args)
+{
+    isKernelMode("semCreate");
+
+    int val = (long) args->arg1;
+    if(val < 0 || semNum == MAXSEMS){
+	args->arg4 = (void*) (long) -1;
+    }
+    else{
+	semNum++;
+	int temp = semCreateHelp(val);
+	args->arg1 = (void*) (long) temp;
+	args->arg4 = 0;
+    }
+
+    if(isZapped()){
+	terminateReal(0);
+    }
+    else{
+	setUserMode();
+    }
+}
+
+int semCreateHelp(int value) {
+    isKernelMode("semCreateHelp");
+
+    int i;
+    int priv_mBoxID = MboxCreate(value, 0);
+    int mutex_mBoxID = MboxCreate(1, 0);
+
+    MboxSend(mutex_mBoxID, NULL, 0);
+
+    for (i = 0; i < MAXSEMS; i++) {
+	if (SemTable[i].id == -1) {
+	    SemTable[i].id = i;
+	    SemTable[i].value = value;
+	    SemTable[i].startingValue = value;
+	    SemTable[i].priv_mBoxID = priv_mBoxID;
+	    SemTable[i].mutex_mBoxID = mutex_mBoxID;
+            initProcQueue3(&SemTable[i].blockedProcs, BLOCKED);
+	    break;
+	}
+    }
+
+    int j;
+    for (j = 0; j < value; j++) {
+	MboxSend(priv_mBoxID, NULL, 0);
+    }
+
+    MboxReceive(mutex_mBoxID, NULL, 0);
+
+    return SemTable[i].id;
+}
+
+/* sysArgs: getTimeOf Day */
+void getTimeOfDay (USLOSS_Sysargs *args)
+{
+    isKernelMode("getTimeOfDay");
+    *((int *)(args->arg1)) = USLOSS_Clock();
+}
+
+/* sysArgs: CPU time */
+void cpuTime(USLOSS_Sysargs *args)
+{
+    isKernelMode("cpuTime");
+    *((int *)(args->arg1)) = readtime();
+}
+
+/* sysArgs: getPID */
+void getPID(USLOSS_Sysargs *args)
+{
+    isKernelMode("getPID");
+    *((int *)(args->arg1)) = getpid();
+}
+
+/* sysArgs: nullsys3 */
+void nullsys3(USLOSS_Sysargs *args)
+{
+    USLOSS_Console("nullsys(): Invalid syscall %d. Terminating...\n", args->number);
+    terminateReal(1);
+}
 
 /* check kernel mode*/
 void isKernelMode(char *name)
