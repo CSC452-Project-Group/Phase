@@ -51,7 +51,7 @@ int Spawn(char *name, int (*func)(char *), char *arg, int stack_size,
 
     USLOSS_Syscall(&sysArg);
 
-    *pid = (int)((long)sysArg.arg1);
+    *pid = (long)sysArg.arg1;
     return (int)((long)sysArg.arg4);
 } /* end of Spawn */
 
@@ -78,8 +78,9 @@ int Wait(int *pid, int *status)
     sysArg.arg2 = status;
     USLOSS_Syscall(&sysArg);
 
-    pid = (int *) sysArg.arg1;
-    status = (int *) sysArg.arg2;
+    *pid = (int) (long)sysArg.arg1;
+    *status = (int ) (long)sysArg.arg2;
+    //USLOSS_Console("Wait() return: %d\n", (int) ((long)sysArg.arg4));
     return (int) ((long)sysArg.arg4);
     
 } /* end of Wait */
@@ -252,6 +253,7 @@ void GetPID(int *pid)
 
     CHECKMODE;
     sysArg.number = SYS_GETPID;
+    //*pid = (long) sysArg.arg1;
     sysArg.arg1 = pid;
 
     USLOSS_Syscall(&sysArg); 
