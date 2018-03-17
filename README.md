@@ -26,3 +26,11 @@ ______Feb 22:<br /> failed:<br /> 21<br />22<br /> 40<br />
 
 ## phase3
 	TODO: Start with spawn, need to be able to create a user level process first
+
+	tests passed:
+		test00, test01, test02, test03, test04, test05, test06, test07, test08, test09, test10, 
+		test11, test12, test13, test14, test15, test16, test17, test18, test19, test22, test23, 
+		test24, 
+
+	tests failed:
+		test20, test21, test25
