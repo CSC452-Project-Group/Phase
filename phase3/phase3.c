@@ -123,7 +123,7 @@ start2(char *arg)
      */
     pid = waitReal(&status);
 
-    USLOSS_Console("Quitting start2...\n");
+    //USLOSS_Console("Quitting start2...\n");
 
     quit(pid);
     return -1;
@@ -141,8 +141,8 @@ void spawn(USLOSS_Sysargs *args)
 
    // USLOSS_Console("spawn(): args are: name = %s, stack size = %d, priority = %d\n", name, stackSize, priority);
 
-    long pid = spawnReal(name, func, arg, stackSize, priority);
-    long status = 0;
+    int pid = spawnReal(name, func, arg, stackSize, priority);
+    int status = 0;
 
     //USLOSS_Console("spawn(): spawnd pid %d\n", pid);
 
@@ -171,8 +171,10 @@ int spawnReal(char *name, int (*func)(char*), char *arg, int stackSize, int prio
     if(pid < 0)
 	return -1;
 
-    procPtr3 child  = &ProcTable3[pid % MAXPROC];
-    enq3(&ProcTable3[getpid() % MAXPROC].childrenQueue, child);
+    procPtr3 child  = &(ProcTable3[pid % MAXPROC]);
+    //USLOSS_Console("child pid: %d", ch);
+    //initProc(child->pid);
+    enq3(&(ProcTable3[getpid() % MAXPROC].childrenQueue), child);
 
     if(child->pid < 0){
 	//USLOSS_Console("spawnReal(): initializing proc table entry for pid %d\n", pid);
@@ -180,7 +182,7 @@ int spawnReal(char *name, int (*func)(char*), char *arg, int stackSize, int prio
     }
     
     child->startFunc = func; //set starting function
-    child->parentPtr = &ProcTable3[getpid() & MAXPROC]; // set child's parent pointer
+    child->parentPtr = &ProcTable3[getpid() % MAXPROC]; // set child's parent pointer
 
     MboxCondSend(child->mboxID, 0, 0);
     return pid;
@@ -630,7 +632,7 @@ procPtr3 deq3(procQueue* q) {
 
 /* Remove the child process from the queue */
 void removeChild3(procQueue* q, procPtr3 child) {
-  if (q->head == NULL || q->type != CHILDREN)
+  if (q->head == NULL)// || q->type != CHILDREN)
     return;
 
   if (q->head == child) {
