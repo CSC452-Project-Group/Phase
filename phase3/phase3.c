@@ -114,7 +114,7 @@ start2(char *arg)
      * values back into the sysargs pointer, switch to user-mode, and 
      * return to the user code that called Spawn.
      */
-    USLOSS_Console("Spawning start3...\n");
+   // USLOSS_Console("Spawning start3...\n");
     pid = spawnReal("start3", start3, NULL, USLOSS_MIN_STACK, 3);
 
     /* Call the waitReal version of your wait code here.
@@ -139,12 +139,12 @@ void spawn(USLOSS_Sysargs *args)
     int priority = (int)((long)args->arg4);
     char *name = (char*) (args->arg5);
 
-    USLOSS_Console("spawn(): args are: name = %s, stack size = %d, priority = %d\n", name, stackSize, priority);
+   // USLOSS_Console("spawn(): args are: name = %s, stack size = %d, priority = %d\n", name, stackSize, priority);
 
     long pid = spawnReal(name, func, arg, stackSize, priority);
     long status = 0;
 
-    USLOSS_Console("spawn(): spawnd pid %d\n", pid);
+    //USLOSS_Console("spawn(): spawnd pid %d\n", pid);
 
     // check if it's terminate, if yes than terminate
     if (isZapped())
@@ -154,8 +154,8 @@ void spawn(USLOSS_Sysargs *args)
     setUserMode();
 
     // set values for Spawn
-    args->arg1 = (void *)pid;
-    args->arg4 = (void *)status;
+    args->arg1 = (void *)((long)pid);
+    args->arg4 = (void *)((long)status);
 }
 
 int spawnReal(char *name, int (*func)(char*), char *arg, int stackSize, int priority)
@@ -163,9 +163,9 @@ int spawnReal(char *name, int (*func)(char*), char *arg, int stackSize, int prio
     isKernelMode("spawnReal");
 
     // fork the process and get its pid
-    USLOSS_Console("spawnReal(): forking process %s... \n", name);
+    //USLOSS_Console("spawnReal(): forking process %s... \n", name);
     int pid = fork1(name, spawnLaunch, arg, stackSize, priority);
-    USLOSS_Console("spawnReal(): forked process name = %s, pid = %d\n", name, pid);
+    //USLOSS_Console("spawnReal(): forked process name = %s, pid = %d\n", name, pid);
     
     // return -1 if unable to fork
     if(pid < 0)
@@ -175,7 +175,7 @@ int spawnReal(char *name, int (*func)(char*), char *arg, int stackSize, int prio
     enq3(&ProcTable3[getpid() % MAXPROC].childrenQueue, child);
 
     if(child->pid < 0){
-	USLOSS_Console("spawnReal(): initializing proc table entry for pid %d\n", pid);
+	//USLOSS_Console("spawnReal(): initializing proc table entry for pid %d\n", pid);
         initProc(pid);        
     }
     
@@ -190,7 +190,7 @@ int spawnReal(char *name, int (*func)(char*), char *arg, int stackSize, int prio
 int spawnLaunch(char *startArg) {
     isKernelMode("spawnLaunch");
 
-    USLOSS_Console("spawnLaunch(): launched pid = %d\n", getpid());
+    //USLOSS_Console("spawnLaunch(): launched pid = %d\n", getpid());
 
     // terminate self if zapped
     if (isZapped())
@@ -201,7 +201,7 @@ int spawnLaunch(char *startArg) {
 
     // if spawnReal hasn't done it yet, set up proc table entry
     if (proc->pid < 0) {
-        USLOSS_Console("spawnLaunch(): initializing proc table entry for pid %d\n", getpid());
+        //USLOSS_Console("spawnLaunch(): initializing proc table entry for pid %d\n", getpid());
         initProc(getpid());
 
         // block until spawnReal is done
@@ -211,12 +211,12 @@ int spawnLaunch(char *startArg) {
     // switch to user mode
     setUserMode();
 
-    USLOSS_Console("spawnLaunch(): starting process %d...\n", proc->pid);
+    //USLOSS_Console("spawnLaunch(): starting process %d...\n", proc->pid);
 
     // call the function to start the process
     int status = proc->startFunc(startArg);
 
-    USLOSS_Console("spawnLaunch(): terminating process %d with status %d\n", proc->pid, status);
+    //USLOSS_Console("spawnLaunch(): terminating process %d with status %d\n", proc->pid, status);
 
     Terminate(status); // terminate the process if it hasn't terminated itself
     return 0;
@@ -229,11 +229,11 @@ void wait(USLOSS_Sysargs *args)
     int *status = args->arg2;
     int pid = waitReal(status);
 
-    USLOSS_Console("wait(): joined with child pid = %d, status = %d\n", pid, *status);
+    //USLOSS_Console("wait(): joined with child pid = %d, status = %d\n", pid, *status);
 
-    args->arg1 = (void *) ((long)(pid));
+    args->arg1 = (void *) ((long)pid);
     args->arg2 = (void *) ((long)*status);
-    args->arg4 = (void *) (0);
+    args->arg4 = (void *) ((long)0);
 
     // terminate self if zapped
     if (isZapped())
@@ -247,7 +247,7 @@ int waitReal(int *status)
 {
     isKernelMode("waitReal");
 
-    USLOSS_Console("in waitReal\n");
+    //USLOSS_Console("in waitReal\n");
     int pid = join(status);
     return pid;
 }
@@ -295,7 +295,7 @@ void terminateReal(int status)
 {
     isKernelMode("terminateReal");
 
-    USLOSS_Console("terminateReal(): terminating pid %d, status = %d\n", getpid(), status);
+    //USLOSS_Console("terminateReal(): terminating pid %d, status = %d\n", getpid(), status);
 
     // zap all children
     procPtr3 proc = &ProcTable3[getpid() % MAXPROC];
