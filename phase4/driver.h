@@ -5,7 +5,12 @@ typedef struct diskQueue diskQueue;
 // #define BLOCKED 0
 // #define CHILDREN 1
 // #define SLEEP 2
-
+#define CHECKMODE {    \
+    if (USLOSS_PsrGet() & USLOSS_PSR_CURRENT_MODE) { \
+        USLOSS_Console("Trying to invoke syscall from kernel\n"); \
+        USLOSS_Halt(1);  \
+    }  \
+}
 struct diskQueue {
 	procPtr  head;
 	procPtr  tail;
