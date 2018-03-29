@@ -5,6 +5,10 @@
 #include <phase4.h>
 #include <stdlib.h> /* needed for atoi() */
 
+/* ---------------------------- Prototypes -------------------------------*/
+int sleepReal(int seconds);
+
+/* ---------------------------- Globals -------------------------------*/
 int  semRunning;
 
 int  ClockDriver(char *);
@@ -89,15 +93,43 @@ ClockDriver(char *arg)
 
     // Infinite loop until we are zap'd
     while(! isZapped()) {
-	result = waitDevice(USLOSS_CLOCK_DEV, 0, &status);
-	if (result != 0) {
-	    return 0;
-	}
-	/*
-	 * Compute the current time and wake up any processes
-	 * whose time has come.
-	 */
+		result = waitDevice(USLOSS_CLOCK_DEV, 0, &status);
+		if (result != 0) {
+			return 0;
+		}
+		/*
+		 * Compute the current time and wake up any processes
+		 * whose time has come.
+		 */
+
+		// get head of sleep queue
+
+		// check every proccess in sleep queue to see if it should be awakened
     }
+}
+
+int Sleep(int seconds) {
+
+	USLOSS_Sysargs sysArg;
+
+	CHECKMODE;
+	
+
+}
+
+int sleep(int seconds) {
+
+	isKernelMode("sleep");
+}
+
+int sleepReal(int seconds) {
+
+	isKernelMode("sleepReal");
+
+	if (seconds < 0)
+		return ERR_INVALID;
+
+	return ERR_OK;
 }
 
 int
