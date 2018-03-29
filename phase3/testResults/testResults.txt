@@ -1,0 +1,639 @@
+starting test 00 ....
+
+start3(): started.  Calling Spawn for Child1
+start3(): fork 5
+Child1(): starting
+Child1(): done
+start3(): result of wait, pid = 5, status = 9
+start3(): Parent done. Calling Terminate.
+All processes completed.
+
+starting test 01 ....
+
+start3(): started.  Calling Spawn for Child1
+Child1(): starting
+Child1(): done
+start3(): after spawn of 5
+start3(): Parent done. Calling Terminate.
+All processes completed.
+
+starting test 02 ....
+
+start3(): started, and immediately return'ing a -3
+All processes completed.
+
+starting test 03 ....
+
+start3(): started.  Calling Spawn for Child1
+Child1(): starting
+Child2(): starting
+Child2(): done
+Child1(): done
+start3(): after spawn of 5
+start3(): Parent done. Calling Terminate.
+All processes completed.
+
+starting test 04 ....
+
+start3(): started.  Calling SemCreate
+start3(): sem_result = 0, semaphore = 0
+start3(): sem_result = 0, semaphore = 1
+All processes completed.
+
+starting test 05 ....
+
+start3(): started.  Calling SemCreate
+i =   0, sem_result =  0
+i =   1, sem_result =  0
+i =   2, sem_result =  0
+i =   3, sem_result =  0
+i =   4, sem_result =  0
+i =   5, sem_result =  0
+i =   6, sem_result =  0
+i =   7, sem_result =  0
+i =   8, sem_result =  0
+i =   9, sem_result =  0
+i =  10, sem_result =  0
+i =  11, sem_result =  0
+i =  12, sem_result =  0
+i =  13, sem_result =  0
+i =  14, sem_result =  0
+i =  15, sem_result =  0
+i =  16, sem_result =  0
+i =  17, sem_result =  0
+i =  18, sem_result =  0
+i =  19, sem_result =  0
+i =  20, sem_result =  0
+i =  21, sem_result =  0
+i =  22, sem_result =  0
+i =  23, sem_result =  0
+i =  24, sem_result =  0
+i =  25, sem_result =  0
+i =  26, sem_result =  0
+i =  27, sem_result =  0
+i =  28, sem_result =  0
+i =  29, sem_result =  0
+i =  30, sem_result =  0
+i =  31, sem_result =  0
+i =  32, sem_result =  0
+i =  33, sem_result =  0
+i =  34, sem_result =  0
+i =  35, sem_result =  0
+i =  36, sem_result =  0
+i =  37, sem_result =  0
+i =  38, sem_result =  0
+i =  39, sem_result =  0
+i =  40, sem_result =  0
+i =  41, sem_result =  0
+i =  42, sem_result =  0
+i =  43, sem_result =  0
+i =  44, sem_result =  0
+i =  45, sem_result =  0
+i =  46, sem_result =  0
+i =  47, sem_result =  0
+i =  48, sem_result =  0
+i =  49, sem_result =  0
+i =  50, sem_result =  0
+i =  51, sem_result =  0
+i =  52, sem_result =  0
+i =  53, sem_result =  0
+i =  54, sem_result =  0
+i =  55, sem_result =  0
+i =  56, sem_result =  0
+i =  57, sem_result =  0
+i =  58, sem_result =  0
+i =  59, sem_result =  0
+i =  60, sem_result =  0
+i =  61, sem_result =  0
+i =  62, sem_result =  0
+i =  63, sem_result =  0
+i =  64, sem_result =  0
+i =  65, sem_result =  0
+i =  66, sem_result =  0
+i =  67, sem_result =  0
+i =  68, sem_result =  0
+i =  69, sem_result =  0
+i =  70, sem_result =  0
+i =  71, sem_result =  0
+i =  72, sem_result =  0
+i =  73, sem_result =  0
+i =  74, sem_result =  0
+i =  75, sem_result =  0
+i =  76, sem_result =  0
+i =  77, sem_result =  0
+i =  78, sem_result =  0
+i =  79, sem_result =  0
+i =  80, sem_result =  0
+i =  81, sem_result =  0
+i =  82, sem_result =  0
+i =  83, sem_result =  0
+i =  84, sem_result =  0
+i =  85, sem_result =  0
+i =  86, sem_result =  0
+i =  87, sem_result =  0
+i =  88, sem_result =  0
+i =  89, sem_result =  0
+i =  90, sem_result =  0
+i =  91, sem_result =  0
+i =  92, sem_result =  0
+i =  93, sem_result =  0
+i =  94, sem_result =  0
+i =  95, sem_result =  0
+i =  96, sem_result =  0
+i =  97, sem_result =  0
+i =  98, sem_result =  0
+i =  99, sem_result =  0
+i = 100, sem_result =  0
+i = 101, sem_result =  0
+i = 102, sem_result =  0
+i = 103, sem_result =  0
+i = 104, sem_result =  0
+i = 105, sem_result =  0
+i = 106, sem_result =  0
+i = 107, sem_result =  0
+i = 108, sem_result =  0
+i = 109, sem_result =  0
+i = 110, sem_result =  0
+i = 111, sem_result =  0
+i = 112, sem_result =  0
+i = 113, sem_result =  0
+i = 114, sem_result =  0
+i = 115, sem_result =  0
+i = 116, sem_result =  0
+i = 117, sem_result =  0
+i = 118, sem_result =  0
+i = 119, sem_result =  0
+i = 120, sem_result =  0
+i = 121, sem_result =  0
+i = 122, sem_result =  0
+i = 123, sem_result =  0
+i = 124, sem_result =  0
+i = 125, sem_result =  0
+i = 126, sem_result =  0
+i = 127, sem_result =  0
+i = 128, sem_result =  0
+i = 129, sem_result =  0
+i = 130, sem_result =  0
+i = 131, sem_result =  0
+i = 132, sem_result =  0
+i = 133, sem_result =  0
+i = 134, sem_result =  0
+i = 135, sem_result =  0
+i = 136, sem_result =  0
+i = 137, sem_result =  0
+i = 138, sem_result =  0
+i = 139, sem_result =  0
+i = 140, sem_result =  0
+i = 141, sem_result =  0
+i = 142, sem_result =  0
+i = 143, sem_result =  0
+i = 144, sem_result =  0
+i = 145, sem_result =  0
+i = 146, sem_result =  0
+i = 147, sem_result =  0
+i = 148, sem_result =  0
+i = 149, sem_result =  0
+i = 150, sem_result =  0
+i = 151, sem_result =  0
+i = 152, sem_result =  0
+i = 153, sem_result =  0
+i = 154, sem_result =  0
+i = 155, sem_result =  0
+i = 156, sem_result =  0
+i = 157, sem_result =  0
+i = 158, sem_result =  0
+i = 159, sem_result =  0
+i = 160, sem_result =  0
+i = 161, sem_result =  0
+i = 162, sem_result =  0
+i = 163, sem_result =  0
+i = 164, sem_result =  0
+i = 165, sem_result =  0
+i = 166, sem_result =  0
+i = 167, sem_result =  0
+i = 168, sem_result =  0
+i = 169, sem_result =  0
+i = 170, sem_result =  0
+i = 171, sem_result =  0
+i = 172, sem_result =  0
+i = 173, sem_result =  0
+i = 174, sem_result =  0
+i = 175, sem_result =  0
+i = 176, sem_result =  0
+i = 177, sem_result =  0
+i = 178, sem_result =  0
+i = 179, sem_result =  0
+i = 180, sem_result =  0
+i = 181, sem_result =  0
+i = 182, sem_result =  0
+i = 183, sem_result =  0
+i = 184, sem_result =  0
+i = 185, sem_result =  0
+i = 186, sem_result =  0
+i = 187, sem_result =  0
+i = 188, sem_result =  0
+i = 189, sem_result =  0
+i = 190, sem_result =  0
+i = 191, sem_result =  0
+i = 192, sem_result =  0
+i = 193, sem_result =  0
+i = 194, sem_result =  0
+i = 195, sem_result =  0
+i = 196, sem_result =  0
+i = 197, sem_result =  0
+i = 198, sem_result =  0
+i = 199, sem_result =  0
+i = 200, sem_result = -1
+i = 201, sem_result = -1
+All processes completed.
+
+starting test 06 ....
+
+start3(): started.  Creating semaphore.
+start3(): calling Spawn for Child1
+Child1(): starting, P'ing semaphore
+start3(): after spawn of 5
+start3(): calling Spawn for Child2
+Child2(): starting, V'ing semaphore
+Child2(): done
+Child1(): done
+start3(): after spawn of 6
+start3(): Parent done. Calling Terminate.
+All processes completed.
+
+starting test 07 ....
+
+start3(): started.  Creating semaphore.
+start3(): calling Spawn for Child1
+Child1a(): starting, P'ing semaphore
+Child1b(): starting, P'ing semaphore
+Child1c(): starting, P'ing semaphore
+start3(): after spawn of 7
+start3(): calling Spawn for Child2
+Child2(): 8 starting, V'ing semaphore
+Child2(): done
+Child1a(): done
+Child1b(): done
+Child1c(): done
+start3(): after spawn of 8
+start3(): Parent done. Calling Terminate.
+All processes completed.
+
+starting test 08 ....
+
+start3(): started.  Calling SemCreate
+start3(): freeing one semaphore
+start3(): Correct result from last call to SemCreate()
+All processes completed.
+
+starting test 09 ....
+
+start3(): started.  Creating semaphore.
+start3(): calling Spawn for Child1a
+Child1a(): starting, P'ing semaphore
+start3(): calling Spawn for Child1b
+Child1b(): starting, P'ing semaphore
+start3(): calling Spawn for Child1c
+Child1c(): starting, P'ing semaphore
+start3(): calling Spawn for Child2
+Child2(): starting, free'ing semaphore
+Child2(): done
+start3(): after spawn of Child2
+start3(): Parent done. Calling Terminate.
+All processes completed.
+
+starting test 10 ....
+
+start3(): started
+start3(): calling Spawn for Child1a
+Child1a(): starting
+Child1a(): current time = 129
+Child1a(): current time = 136
+Child1a(): current time = 142
+Child1a(): done
+start3(): calling Spawn for Child1b
+Child1b(): starting
+Child1b(): current time = 221
+Child1b(): current time = 230
+Child1b(): current time = 237
+Child1b(): done
+start3(): calling Spawn for Child1c
+Child1c(): starting
+Child1c(): current time = 321
+Child1c(): current time = 326
+Child1c(): current time = 334
+Child1c(): done
+start3(): calling Spawn for Child2
+start3(): Parent done. Calling Terminate.
+All processes completed.
+
+starting test 11 ....
+
+start3(): started
+start3(): calling Spawn for Child1a
+Child1a(): starting
+Child1a(): current time = 14
+Child1a(): current time = 21
+Child1a(): current time = 27
+Child1a(): done
+start3(): calling Spawn for Child1b
+Child1b(): starting
+Child1b(): current time = 13
+Child1b(): current time = 22
+Child1b(): current time = 29
+Child1b(): done
+start3(): calling Spawn for Child1c
+Child1c(): starting
+Child1c(): current time = 11
+Child1c(): current time = 16
+Child1c(): current time = 24
+Child1c(): done
+start3(): calling Spawn for Child2
+start3(): Parent done. Calling Terminate.
+All processes completed.
+
+starting test 12 ....
+
+start3(): started
+start3(): calling Spawn for Child1a
+Child1a(): starting
+Child1a(): current time of day = 129
+Child1a(): current CPU time = 21
+Child1a(): current time of day = 142
+Child1a(): current CPU time = 33
+Child1a(): current time of day = 156
+Child1a(): current CPU time = 46
+Child1a(): done
+start3(): calling Spawn for Child1b
+Child1b(): starting
+Child1b(): current time of day = 243
+Child1b(): current CPU time = 19
+Child1b(): current time of day = 259
+Child1b(): current CPU time = 36
+Child1b(): current time of day = 273
+Child1b(): current CPU time = 48
+Child1b(): done
+start3(): calling Spawn for Child1c
+Child1c(): starting
+Child1c(): current time of day = 363
+Child1c(): current CPU time = 19
+Child1c(): current time of day = 380
+Child1c(): current CPU time = 34
+Child1c(): current time of day = 395
+Child1c(): current CPU time = 49
+Child1c(): done
+start3(): calling Spawn for Child2
+start3(): Parent done. Calling Terminate.
+All processes completed.
+
+starting test 13 ....
+
+start3(): started
+start3(): calling Spawn for Child1a
+Child1a(): starting
+Child1a(): pid = 5
+Child1a(): done
+start3(): calling Spawn for Child1b
+Child1b(): starting
+Child1b(): pid = 6
+Child1b(): done
+start3(): calling Spawn for Child1c
+Child1c(): starting
+Child1c(): pid = 7
+Child1c(): done
+start3(): calling Spawn for Child2
+start3(): Parent done. Calling Terminate.
+All processes completed.
+
+starting test 14 ....
+
+start3(): started
+start3(): fork 5
+Child1(): starting
+start3(): Done.
+All processes completed.
+
+starting test 15 ....
+
+Child1(): started
+start3(): Done.
+All processes completed.
+
+starting test 16 ....
+
+start3(): started
+start3(): After P in the CS
+Child1(): starting
+start3(): fork 5
+Child2(): starting
+start3(): fork 6
+start3(): After SemFree with processes blocked
+start3(): status of quit child = 1
+start3(): status of quit child = 1
+start3(): Parent done
+All processes completed.
+
+starting test 17 ....
+
+start3(): started
+start3(): spawned process 5
+Child1() starting
+Child1(): spawned process 6
+Child2(): starting
+Child1(): child 6 returned status of 9
+Child1(): spawned process 7
+Child3(): starting
+Child1(): child 7 returned status of 10
+Child1(): done
+start3(): child 5 returned status of 9
+start3(): done
+All processes completed.
+
+starting test 18 ....
+
+start3(): started
+start3(): spawned process 5
+Child1(): starting, pid = 5
+Child2(): starting, pid = 6
+Child2(): spawned process 7
+Child2(): spawned process 8
+Child2(): spawned process 9
+Child1(): spawned process 6
+Child1(): child 6 returned status of 10
+Child1(): spawned process 10
+Child3(): starting
+Child1(): child 10 returned status of 11
+Child1(): done
+start3(): child 5 returned status of 9
+start3(): done
+All processes completed.
+
+starting test 19 ....
+
+start3(): started
+start3(): elapsed time = 7
+All processes completed.
+
+starting test 20 ....
+
+start3(): started
+start3(): After P in the CS
+Child1(): starting
+Child1(): After P attempt #0
+Child1(): After P attempt #1
+start3(): spawn 5
+start3(): spawn 6
+Child1(): After P attempt #2
+Child2(): starting
+start3(): After V -- may appear before: Child1(): After P attempt #3
+Child1(): After P attempt #3 -- may appear before: start3(): After V
+Child2(): After V attempt #0
+Child1(): After P attempt #4
+Child1(): done
+Child2(): After V attempt #1
+Child2(): After V attempt #2
+Child2(): After V attempt #3
+Child2(): After V attempt #4
+Child2(): done
+start3(): status of quit child = 9
+start3(): status of quit child = 10
+start3(): Parent done
+All processes completed.
+
+starting test 21 ....
+
+start3(): started
+start3(): spawned process 5
+Child1(): starting, pid = 5
+Child2(): starting, pid = 6
+Child2(): spawned process 7
+Child2(): spawned process 8
+Child2(): spawned process 9
+Child1(): spawned process 6
+Child2a(): starting the code for Child2a
+Child2(): Wait result for child 7 has status 11
+Child2b(): starting the code for Child2b
+Child2(): Wait result for child 8 has status 11
+Child2c(): starting the code for Child2c
+Child2(): Wait result for child 9 has status 11
+Child1(): child 6 returned status of 10
+Child1(): done
+start3(): child 5 returned status of 9
+start3(): done
+All processes completed.
+
+starting test 22 ....
+
+start3(): started
+start3(): spawned process 5
+Child1(): starting, pid = 5
+Child2(): starting, pid = 6
+Child2(): spawned process 7
+Child2(): terminating
+Child1(): spawned process 6
+Child1(): child 6 returned status of 10
+Child1(): done
+start3(): child 5 returned status of 9
+start3(): done
+All processes completed.
+
+starting test 23 ....
+
+start3(): started
+start3(): spawned process 5
+Child1(): starting, pid = 5
+Child2(): starting, pid = 6
+Child2(): spawned process 7
+Child2(): spawned process 8
+Child2(): terminating
+Child1(): spawned process 6
+Child1(): child 6 returned status of 10
+Child1(): done
+start3(): child 5 returned status of 9
+start3(): done
+All processes completed.
+
+starting test 24 ....
+
+start3(): started
+start3(): spawned process 5
+Child1(): starting, pid = 5
+Child2(): starting, pid = 6
+Child2(): spawned process 7
+Child2(): spawned process 8
+Child2(): spawned process 9
+Child1(): spawned process 6
+Child1(): child 6 returned status of 10
+Child1(): done
+start3(): child 5 returned status of 9
+start3(): done
+All processes completed.
+
+starting test 25 ....
+
+start3(): started
+start3(): spawned process 5
+Child1(): starting, pid = 5
+Child2(): starting, pid = 6
+Child2(): spawned process 7
+Child2(): spawned process 8
+Child2(): spawned process 9
+Child2(): spawned process 10
+Child2(): spawned process 11
+Child2(): spawned process 12
+Child2(): spawned process 13
+Child2(): spawned process 14
+Child2(): spawned process 15
+Child2(): spawned process 16
+Child2(): spawned process 17
+Child2(): spawned process 18
+Child2(): spawned process 19
+Child2(): spawned process 20
+Child2(): spawned process 21
+Child2(): spawned process 22
+Child2(): spawned process 23
+Child2(): spawned process 24
+Child2(): spawned process 25
+Child2(): spawned process 26
+Child2(): spawned process 27
+Child2(): spawned process 28
+Child2(): spawned process 29
+Child2(): spawned process 30
+Child2(): spawned process 31
+Child2(): spawned process 32
+Child2(): spawned process 33
+Child2(): spawned process 34
+Child2(): spawned process 35
+Child2(): spawned process 36
+Child2(): spawned process 37
+Child2(): spawned process 38
+Child2(): spawned process 39
+Child2(): spawned process 40
+Child2(): spawned process 41
+Child2(): spawned process 42
+Child2(): spawned process 43
+Child2(): spawned process 44
+Child2(): spawned process 45
+Child2(): spawned process 46
+Child2(): spawned process 47
+Child2(): spawned process 48
+Child2(): spawned process 49
+Child2(): spawned process 50
+Child2(): spawned attempt failed, pid = -1
+Child2(): spawned attempt failed, pid = -1
+Child2(): spawned attempt failed, pid = -1
+Child2(): spawned attempt failed, pid = -1
+Child2(): spawned attempt failed, pid = -1
+Child2(): spawned attempt failed, pid = -1
+Child2(): Terminating me and all my children
+Child1(): spawned process 6
+Child2b(): starting, pid = 356
+Child2c(): starting the code for Child2c
+Child2b(): spawned process 357
+Child1(): spawned process 356
+Child1(): child 356 returned status of 50
+Child1(): done
+start3(): child 5 returned status of 9
+start3(): done
+All processes completed.
+
