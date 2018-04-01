@@ -4,7 +4,8 @@
 #include <phase3.h>
 #include <phase4.h>
 #include <stdlib.h> /* needed for atoi() */
-
+#include <driver.h>
+#include <providedPrototypes.h>
 /* ---------------------------- Prototypes -------------------------------*/
 int sleepReal(int seconds);
 
@@ -97,8 +98,22 @@ start3(void)
      * driver, and perhaps do something with the pid returned.
      */
 
+    int temp;
     for (i = 0; i < USLOSS_DISK_UNITS; i++) {
+        sprintf(diskbuf, "%d", i);
+        pid = fork1("Disk driver", DiskDriver, diskbuf, USLOSS_MIN_STACK, 2);
+        if (pid < 0) {
+            USLOSS_Console("start3(): Can't create disk driver %d\n", i);
+            USLOSS_Halt(1);
+        }
+
+        diskPids[i] = pid;
+        sempReal(running); // wait for driver to start running
+
+        //TODO: get number of tracks, implement diskSizeReal
+        diskSizeReal(i, &temp, &temp, &ProcTable[pid % MAXPROC].diskTrack);
     }
+
 
     // May be other stuff to do here before going on to terminal drivers
 
@@ -135,8 +150,11 @@ ClockDriver(char *arg)
 
     // Let the parent know we are running and enable interrupts.
     semvReal(semRunning);
-    USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT);
-
+    int resultC = USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT);
+    if(resultC != USLOSS_DEV_OK) {
+        USLOSS_Console("ERROR: USLOSS_PsrSet failed! Exiting....'n");
+        USLOSS_Halt(1);
+    }
     // Infinite loop until we are zap'd
     while(! isZapped()) {
 		result = waitDevice(USLOSS_CLOCK_DEV, 0, &status);
@@ -148,9 +166,16 @@ ClockDriver(char *arg)
 		 * whose time has come.
 		 */
 
-		// get head of sleep queue
-
-		// check every proccess in sleep queue to see if it should be awakened
+		//TODO: get head of sleep queue
+		procPtr proc;
+		while (sleepQueue != NULL && status >= sleepQueue->wakeTime) {
+            	    // TODO: check every proccess in sleep queue to see if it should be awakened
+		    proc = queueRemove(&sleepqueue);
+                    USLOSS_Console("ClockDriver: Waking up process %d\n", proc->pid);
+             	    semvReal(proc->blockSem); 
+        	}
+    }
+    return 0;
     }
 }
 
@@ -181,6 +206,93 @@ int sleepReal(int seconds) {
 int
 DiskDriver(char *arg)
 {
+    int result;
+    int status;
+    int unit = atoi( (char *) arg);     // Unit is passed as arg.
+
+    // set up the proc table
+    initProc(getpid());
+    procPtr me = &ProcTable[getpid() % MAXPROC];
+    initDiskQueue(&diskQs[unit]);
+
+    USLOSS_Console("DiskDriver: unit %d started, pid = %d\n", unit, me->pid);
+
+    // Let the parent know we are running and enable interrupts.
+    semvReal(running);
+    USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT);
+
+    // Infinite loop until we are zap'd
+    while(!isZapped()) {
+        // block on sem until we get request
+        sempReal(me->blockSem);
+        USLOSS_Console("DiskDriver: unit %d unblocked, zapped = %d, queue size = %d\n", unit, isZapped(), diskQs[unit].size);
+        
+        if (isZapped()){
+            return 0;
+	}
+        // get request off queue
+        if (diskQs[unit].size > 0) {
+            procPtr proc = peekDiskQ(&diskQs[unit]);
+            int track = proc->diskTrack;
+
+            USLOSS_Console("DiskDriver: taking request from pid %d, track %d\n", proc->pid, proc->diskTrack);
+            
+
+            // handle tracks request
+            if (proc->diskRequest.opr == USLOSS_DISK_TRACKS) {
+                USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &proc->diskRequest);
+                result = waitDevice(USLOSS_DISK_DEV, unit, &status);
+                if (result != 0) {
+                    return 0;
+                }
+            }
+
+            else { // handle read/write requests
+                while (proc->diskSectors > 0) {
+                    USLOSS_DeviceRequest request;
+                    request.opr = USLOSS_DISK_SEEK;
+                    request.reg1 = &track;
+                    USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &request);
+                    result = waitDevice(USLOSS_DISK_DEV, unit, &status);
+                    if (result != 0) {
+                        return 0;
+                    }
+
+                    
+                    USLOSS_Console("DiskDriver: seeked to track %d, status = %d, result = %d\n", track, status, result);
+
+                    // read/write the sectors
+                    int sec;
+                    for (sec = proc->diskFirstSec; proc->diskSectors > 0 && sec < USLOSS_DISK_TRACK_SIZE; sec++) {
+                        proc->diskRequest.reg1 = (void *) ((long) sec);
+                        USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &proc->diskRequest);
+                        result = waitDevice(USLOSS_DISK_DEV, unit, &status);
+                        if (result != 0) {
+                            return 0;
+                        }
+
+                        USLOSS_Console("DiskDriver: read/wrote sector %d, status = %d, result = %d, buffer = %s\n", sec, status, result, proc->diskRequest.reg2);
+                        
+
+                        proc->diskSectors--;
+                        proc->diskRequest.reg2 += USLOSS_DISK_SECTOR_SIZE;
+                    }
+
+                    // request first sector of next track
+                    track++;
+                    proc->diskFirstSec = 0;
+                }
+            }
+
+            USLOSS_Console("DiskDriver: finished request from pid %d\n", proc->pid, result, status);
+
+            removeDiskQ(&diskQs[unit]);
+            semvReal(proc->blockSem);
+        }
+
+    }
+
+    semvReal(running); // unblock parent
     return 0;
 }
 
