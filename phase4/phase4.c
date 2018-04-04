@@ -5,7 +5,8 @@
 #include <phase4.h>
 #include <stdlib.h> /* needed for atoi() */
 #include <driver.h>
-#include <providedPrototypes.h>
+#include "providedPrototypes.h"
+#include <libuser.h>
 /* ---------------------------- Prototypes -------------------------------*/
 int sleepReal(int seconds);
 
