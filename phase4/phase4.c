@@ -8,7 +8,11 @@
 #include "providedPrototypes.h"
 #include <libuser.h>
 /* ---------------------------- Prototypes -------------------------------*/
+void sleep(USLOSS_Sysargs *args);
 int sleepReal(int seconds);
+void diskRead(USLOSS_Sysargs *args);
+int diskReadReal(int unit, int track, int first, int sectors, void *buffer);
+void enqueueSleeper(procPtr p);
 
 /* ---------------------------- Globals -------------------------------*/
 int  semRunning;
@@ -28,6 +32,7 @@ procStruct ProcTable[MAXPROC];
 
 int diskZapped; // indicates if the disk drivers are 'zapped' or not
 diskQueue diskQs[USLOSS_DISK_UNITS]; // queues for disk drivers
+diskQueue sleepQueue[MAXPROC]; // queue for the sleeping user proccesses
 int diskPids[USLOSS_DISK_UNITS]; // pids of the disk drivers
 
 // mailboxes for terminal device
@@ -74,6 +79,8 @@ start3(void)
         lineWriteMbox[i] = MboxCreate(10, MAXLINE); 
         pidMbox[i] = MboxCreate(1, sizeof(int));
     }
+
+	initDiskQueue(&sleepQueue); // initialize the sleep queue
 
     /*
      * Create clock device driver 
@@ -143,6 +150,10 @@ start3(void)
     
 }
 
+/*********************************************************************************/
+/* -------------------------------- ClockDriver -------------------------------- */
+/*********************************************************************************/
+
 int
 ClockDriver(char *arg)
 {
@@ -174,7 +185,7 @@ ClockDriver(char *arg)
 		    proc = queueRemove(&sleepqueue);
                     USLOSS_Console("ClockDriver: Waking up process %d\n", proc->pid);
              	    semvReal(proc->blockSem); 
-        	}
+        }
     }
     return 0;
     }
@@ -185,13 +196,28 @@ int Sleep(int seconds) {
 	USLOSS_Sysargs sysArg;
 
 	CHECKMODE;
-	
+	sysArg.number = SYS_SLEEP;
+	sysArg.arg1 = (void *)((long)seconds);
 
+	USLOSS_Syscall(&sysArg);
+
+	return (int)((long)sysArg.arg4);
 }
 
-int sleep(int seconds) {
+void sleep(USLOSS_Sysargs *args) {
 
 	isKernelMode("sleep");
+
+	int seconds = args->arg1;
+
+	if (isZapped())
+		terminateReal(1);
+
+	int result = sleepReal(seconds);
+
+	args->arg4 = (void *)((long)result);
+
+	setUserMode();
 }
 
 int sleepReal(int seconds) {
@@ -201,8 +227,19 @@ int sleepReal(int seconds) {
 	if (seconds < 0)
 		return ERR_INVALID;
 
+	int timeNow = waitDevice(USLOSS_CLOCK_DEV, 0, &status);
+	int wakeTime = timeNow + seconds;
+
+	procPtr proc = ProcTable[GetPID];
+	proc->wakeTime = wakeTime;
+	enqueueSleeper(proc);
+
 	return ERR_OK;
 }
+
+/********************************************************************************/
+/* -------------------------------- DiskDriver -------------------------------- */
+/********************************************************************************/
 
 int
 DiskDriver(char *arg)
@@ -297,6 +334,37 @@ DiskDriver(char *arg)
     return 0;
 }
 
+/* ----------------------- DiskRead ----------------------- */
+
+int DiskRead(void *diskBuffer, int unit, int track, int first,
+	int sectors, int *status) {
+
+	USLOSS_Sysargs sysArg;
+
+	CHECKMODE;
+	sysArg.number = SYS_DISKREAD;
+	sysArg.arg1 = diskBuffer;
+	sysArg.arg2 = (void*)((long)unit);
+	sysArg.arg3 = (void*)((long)track);
+	sysArg.arg4 = (void*)((long)first);
+	sysArg.arg5 = (void*)((long)sectors);
+
+	USLOSS_Syscall(&sysArg);
+
+	*status = (long)sysArg.arg1;
+	return (int)((long)sysArg.arg4);
+}
+
+void diskRead(USLOSS_Sysargs *args) {
+
+	isKernelMode("diskRead");
+
+}
+
+int diskReadReal(int unit, int track, int first, int sectors, void *buffer) {
+
+}
+
 void isKernelMode(char *name)
 {
     if( (USLOSS_PSR_CURRENT_MODE & USLOSS_PsrGet()) == 0 ) {
@@ -372,10 +440,42 @@ void addDiskQ(diskQueue* q, procPtr p) {
         if (p->diskTrack >= q->tail->diskTrack)
             q->tail = p; // update tail
     }
-    q->size++;
+	q->size++;
     if (debug4)
         USLOSS_Console("addDiskQ: add complete, size = %d\n", q->size);
 } 
+
+/* queues a sleeper into the sleep queue based on its wake up time */
+void enqueueSleeper(procPtr p) {
+	// first add
+	if (q->head == NULL) {
+		q->head = q->tail = p;
+		q->head->nextDiskPtr = q->tail->nextDiskPtr = NULL;
+		q->head->prevDiskPtr = q->tail->prevDiskPtr = NULL;
+	}
+	else {
+		// find the right location to add
+		procPtr prev = q->tail;
+		procPtr next = q->head;
+		while (next != NULL && next->waitTIme <= p->waitTime) {
+			prev = next;
+			next = next->nextDiskPtr;
+			if (next == q->head)
+				break;
+		}
+		prev->nextDiskPtr = p;
+		p->prevDiskPtr = prev;
+		if (next == NULL)
+			next = q->head;
+		p->nextDiskPtr = next;
+		next->prevDiskPtr = p;
+		if (p->diskTrack < q->head->diskTrack)
+			q->head = p; // update head
+		if (p->diskTrack >= q->tail->diskTrack)
+			q->tail = p; // update tail
+	}
+	q->size++;
+}
 
 /* Returns the next proc on the disk queue */
 procPtr peekDiskQ(diskQueue* q) {
