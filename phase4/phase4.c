@@ -194,11 +194,11 @@ ClockDriver(char *arg)
 		 * whose time has come.
 		 */
 
-		//procPtr proc;
+		procPtr proc;
 		while (peekDiskQ(&sleepQueue)->wakeTime < status) {
-			//proc = queueRemove(&sleepqueue);
-			//USLOSS_Console("ClockDriver: Waking up process %d\n", proc->pid);
-			//semvReal(proc->blockSem);
+			proc = removeDiskQ(&sleepQueue);
+			USLOSS_Console("ClockDriver: Waking up process %d\n", proc->pid);
+			semvReal(proc->blockSem);
 		}
     }
     return 0;
