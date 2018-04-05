@@ -1,4 +1,5 @@
 #include <usloss.h>
+#include <usyscall.h>
 #include <phase1.h>
 #include <phase2.h>
 #include <phase3.h>
@@ -7,6 +8,8 @@
 #include <driver.h>
 #include "providedPrototypes.h"
 #include <libuser.h>
+#include <stdio.h>
+#include <string.h>
 /* ---------------------------- Prototypes -------------------------------*/
 void sleep(USLOSS_Sysargs *args);
 int sleepReal(int seconds);
@@ -116,7 +119,7 @@ start3(void)
         }
 
         diskPids[i] = pid;
-        sempReal(running); // wait for driver to start running
+        sempReal(semRunning); // wait for driver to start running
 
         //TODO: get number of tracks, implement diskSizeReal
         diskSizeReal(i, &temp, &temp, &ProcTable[pid % MAXPROC].diskTrack);
@@ -188,7 +191,6 @@ ClockDriver(char *arg)
         }
     }
     return 0;
-    }
 }
 
 int Sleep(int seconds) {
@@ -256,9 +258,12 @@ DiskDriver(char *arg)
     USLOSS_Console("DiskDriver: unit %d started, pid = %d\n", unit, me->pid);
 
     // Let the parent know we are running and enable interrupts.
-    semvReal(running);
-    USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT);
-
+    semvReal(semRunning);
+    int Result = USLOSS_PsrSet(USLOSS_PsrGet() | USLOSS_PSR_CURRENT_INT);
+    if(Result == USLOSS_DEV_INVALID){
+	USLOSS_Console("DiskDriver(): unit number invalid, returning\n");
+    	return 0;
+    }
     // Infinite loop until we are zap'd
     while(!isZapped()) {
         // block on sem until we get request
@@ -330,40 +335,227 @@ DiskDriver(char *arg)
 
     }
 
-    semvReal(running); // unblock parent
+    semvReal(semRunning); // unblock parent
     return 0;
 }
 
-/* ----------------------- DiskRead ----------------------- */
 
-int DiskRead(void *diskBuffer, int unit, int track, int first,
-	int sectors, int *status) {
+/* ------------------------------------------------------------------------
+   Name - TermDriver
+   Purpose -
+   Parameters -
+   Returns -
+   Side Effects -
+   ----------------------------------------------------------------------- */
+int
+TermDriver(char *arg)
+{
+    return 0;
+} /* TermDriver */
 
-	USLOSS_Sysargs sysArg;
+/* ------------------------------------------------------------------------
+   Name - TermReader
+   Purpose -
+   Parameters -
+   Returns -
+   Side Effects -
+   ----------------------------------------------------------------------- */
+int
+TermReader(char *arg)
+{
+    return 0;
+} /* TermReader */
 
-	CHECKMODE;
-	sysArg.number = SYS_DISKREAD;
-	sysArg.arg1 = diskBuffer;
-	sysArg.arg2 = (void*)((long)unit);
-	sysArg.arg3 = (void*)((long)track);
-	sysArg.arg4 = (void*)((long)first);
-	sysArg.arg5 = (void*)((long)sectors);
+/* ------------------------------------------------------------------------
+   Name - TermWriter
+   Purpose -
+   Parameters -
+   Returns -
+   Side Effects -
+   ----------------------------------------------------------------------- */
+int
+TermWriter(char *arg)
+{
+    return 0;
+} /* TermWriter */
 
-	USLOSS_Syscall(&sysArg);
+/* ------------------------------------------------------------------------
+   Name - diskRead
+   Purpose - Reads one or more sectors from a disk.
+   Parameters - arg1: the memory address to which to transfer
+                arg2: number of sectors to read
+                arg3: the starting disk track number
+                arg4: the starting disk sector number
+                arg5: the unit number of the disk from which to read
+   Returns - arg1: 0 if transfer was successful; the disk status register otherwise.
+             arg4: -1 if illegal values are given as input; 0 otherwise.
+   Side Effects - call diskReadReal
+   ----------------------------------------------------------------------- */
+void
+diskRead(USLOSS_Sysargs* args)
+{
+    // check kernel mode
+}/* diskRead */
 
-	*status = (long)sysArg.arg1;
-	return (int)((long)sysArg.arg4);
-}
+/* ------------------------------------------------------------------------
+   Name - diskReadReal
+   Purpose - Reads sectors sectors from the disk indicated by unit, starting
+             at track track and sector first.
+   Parameters - Required by diskRead
+   Returns - -1 if invalid parameters
+              0 if sectors were read successfully
+             >0 if disk’s status register
+   Side Effects - none.
+   ----------------------------------------------------------------------- */
+int
+diskReadReal(int unit, int track, int first, int sectors, void *buffer)
+{
+    // check kernel mode
+    isKernelMode("diskReadReal");
 
-void diskRead(USLOSS_Sysargs *args) {
 
-	isKernelMode("diskRead");
+    return 0;
+} /* diskReadReal */
 
-}
+/* ------------------------------------------------------------------------
+   Name - diskWrite
+   Purpose - Writes one or more sectors to the disk.
+   Parameters - arg1: the memory address from which to transfer.
+                arg2: number of sectors to write.
+                arg3: the starting disk track number.
+                arg4: the starting disk sector number.
+                arg5: the unit number of the disk to write.
+   Returns - arg1: 0 if transfer was successful; the disk status register otherwise.
+             arg4: -1 if illegal values are given as input; 0 otherwise.
+   Side Effects - call diskWriteReal
+   ----------------------------------------------------------------------- */
+void
+diskWrite(USLOSS_Sysargs* args)
+{
+    // check kernel mode
+    isKernelMode("diskWrite");
 
-int diskReadReal(int unit, int track, int first, int sectors, void *buffer) {
+} /* diskWrite */
 
-}
+/* ------------------------------------------------------------------------
+   Name - diskWriteReal
+   Purpose - Writes sectors sectors to the disk indicated by unit, starting
+             at track track and sector first
+   Parameters - Required by diskWrite
+   Returns - -1 if invalid parameters
+              0 if sectors were written successfully
+             >0 if disk’s status register
+   Side Effects - none.
+   ----------------------------------------------------------------------- */
+int
+diskWriteReal(int unit, int track, int first, int sectors, void *buffer)
+{
+    // check kernel mode
+    isKernelMode("diskWriteReal");
+
+    return 0;
+} /* diskWriteReal */
+
+/* ------------------------------------------------------------------------
+   Name - diskSize
+   Purpose - Returns information about the size of the disk.
+   Parameters - the unit number of the disk
+   Returns - arg1: size of a sector, in bytes
+             arg2: number of sectors in a track
+             arg3: number of tracks in the disk
+             arg4: -1 if illegal values are given as input; 0 otherwise.
+   Side Effects - call diskSizeReal
+   ----------------------------------------------------------------------- */
+void
+diskSize(USLOSS_Sysargs* args)
+{
+    // check kernel mode
+    isKernelMode("diskSize");
+
+} /* diskSize */
+
+/* ------------------------------------------------------------------------
+   Name - diskSizeReal
+   Purpose - Returns information about the size of the disk indicated by unit.
+   Parameters - Required by diskSize
+   Returns - -1 if invalid parameters
+              0 if disk size parameters returned successfully
+   Side Effects - none.
+   ----------------------------------------------------------------------- */
+int
+diskSizeReal(int unit, int *sector, int *track, int *disk)
+{
+    // check kernel mode
+    isKernelMode("diskSizeReal");
+
+    return 0;
+} /* diskSizeReal */
+
+/* ------------------------------------------------------------------------
+   Name - termRead
+   Purpose - Read a line from a terminal
+   Parameters - arg1: address of the user’s line buffer.
+                arg2: maximum size of the buffer.
+                arg3: the unit number of the terminal from which to read.
+   Returns - arg2: number of characters read.
+             arg4: -1 if illegal values are given as input; 0 otherwise.
+   Side Effects - call termReadReal
+   ----------------------------------------------------------------------- */
+void
+termRead(USLOSS_Sysargs* args)
+{
+    // check kernel mode
+    isKernelMode("termRead");
+
+} /* termRead */
+
+/* ------------------------------------------------------------------------
+   Name - termReadReal
+   Purpose - Reads a line of text from the terminal indicated
+             by unit into the buffer pointed to by buffer
+   Parameters - Required by termRead
+   Returns - -1 if invalid parameters
+             >0 if number of characters read
+   Side Effects - none.
+   ----------------------------------------------------------------------- */
+int
+termReadReal(int unit, int size, char *buffer)
+{
+    return 0;
+} /* termReadReal */
+
+/* ------------------------------------------------------------------------
+   Name - termWrite
+   Purpose - Write a line to a terminal
+   Parameters - arg1: address of the user’s line buffer.
+                arg2: number of characters to write.
+                arg3: the unit number of the terminal to which to write.
+   Returns - arg2: number of characters written.
+             arg4: -1 if illegal values are given as input; 0 otherwise.
+   Side Effects - call termWriteReal
+   ----------------------------------------------------------------------- */
+void
+termWrite(USLOSS_Sysargs* args)
+{
+    // check kernel mode
+    
+} /* termWrite */
+
+/* ------------------------------------------------------------------------
+   Name - termWriteReal
+   Purpose - Writes size characters — a line of text pointed to by text to
+             the terminal indicated by unit
+   Parameters - Required by termWrite
+   Returns - -1 if invalid parameters
+             >0 if number of characters written
+   Side Effects - none.
+   ----------------------------------------------------------------------- */
+int
+termWriteReal(int unit, int size, char *text)
+{
+    return 0;
+} /* termWriteReal */
+
 
 void isKernelMode(char *name)
 {
@@ -376,12 +568,16 @@ void isKernelMode(char *name)
 
 void setUserMode()
 {
-    USLOSS_PsrSet( USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_MODE );
+   int result = USLOSS_PsrSet( USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_MODE );
+    if(result == USLOSS_DEV_INVALID){
+	USLOSS_Console("diskHandler(): unit number invalid, returning\n");
+            return;
+    }
 }
 
 /* initializes proc struct */
 void initProc(int pid) {
-    requireKernelMode("initProc()"); 
+    isKernelMode("initProc()"); 
 
     int i = pid % MAXPROC;
 
@@ -408,8 +604,7 @@ void initDiskQueue(diskQueue* q) {
 
 /* Adds the proc pointer to the disk queue in sorted order */
 void addDiskQ(diskQueue* q, procPtr p) {
-    if (debug4)
-        USLOSS_Console("addDiskQ: adding pid %d, track %d to queue\n", p->pid, p->diskTrack);
+    USLOSS_Console("addDiskQ: adding pid %d, track %d to queue\n", p->pid, p->diskTrack);
 
     // first add
     if (q->head == NULL) { 
@@ -427,8 +622,7 @@ void addDiskQ(diskQueue* q, procPtr p) {
             if (next == q->head)
                 break;
         }
-        if (debug4)
-            USLOSS_Console("addDiskQ: found place, prev = %d\n", prev->diskTrack);
+        USLOSS_Console("addDiskQ: found place, prev = %d\n", prev->diskTrack);
         prev->nextDiskPtr = p;
         p->prevDiskPtr = prev;
         if (next == NULL)
@@ -440,9 +634,8 @@ void addDiskQ(diskQueue* q, procPtr p) {
         if (p->diskTrack >= q->tail->diskTrack)
             q->tail = p; // update tail
     }
-	q->size++;
-    if (debug4)
-        USLOSS_Console("addDiskQ: add complete, size = %d\n", q->size);
+    q->size++;
+    USLOSS_Console("addDiskQ: add complete, size = %d\n", q->size);
 } 
 
 /* queues a sleeper into the sleep queue based on its wake up time */
@@ -494,8 +687,7 @@ procPtr removeDiskQ(diskQueue* q) {
         q->curr = q->head;
     }
 
-    if (debug4)
-        USLOSS_Console("removeDiskQ: called, size = %d, curr pid = %d, curr track = %d\n", q->size, q->curr->pid, q->curr->diskTrack);
+    USLOSS_Console("removeDiskQ: called, size = %d, curr pid = %d, curr track = %d\n", q->size, q->curr->pid, q->curr->diskTrack);
 
     procPtr temp = q->curr;
 
@@ -525,8 +717,7 @@ procPtr removeDiskQ(diskQueue* q) {
 
     q->size--;
 
-    if (debug4)
-        USLOSS_Console("removeDiskQ: done, size = %d, curr pid = %d, curr track = %d\n", q->size, temp->pid, temp->diskTrack);
+    USLOSS_Console("removeDiskQ: done, size = %d, curr pid = %d, curr track = %d\n", q->size, temp->pid, temp->diskTrack);
 
     return temp;
 } 
