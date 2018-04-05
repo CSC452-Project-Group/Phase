@@ -48,7 +48,7 @@ procStruct ProcTable[MAXPROC];
 
 int diskZapped; // indicates if the disk drivers are 'zapped' or not
 diskQueue diskQs[USLOSS_DISK_UNITS]; // queues for disk drivers
-diskQueue sleepQueue[MAXPROC]; // queue for the sleeping user proccesses
+diskQueue sleepQueue; // queue for the sleeping user proccesses
 int diskPids[USLOSS_DISK_UNITS]; // pids of the disk drivers
 
 // mailboxes for terminal device
@@ -194,14 +194,12 @@ ClockDriver(char *arg)
 		 * whose time has come.
 		 */
 
-		//TODO: get head of sleep queue
-		procPtr proc;
-		while (sleepQueue != NULL && status >= sleepQueue->wakeTime) {
-            	    // TODO: check every proccess in sleep queue to see if it should be awakened
-		    proc = queueRemove(&sleepqueue);
-                    USLOSS_Console("ClockDriver: Waking up process %d\n", proc->pid);
-             	    semvReal(proc->blockSem); 
-        }
+		//procPtr proc;
+		while (peekDiskQ(&sleepQueue)->wakeTime < status) {
+			//proc = queueRemove(&sleepqueue);
+			//USLOSS_Console("ClockDriver: Waking up process %d\n", proc->pid);
+			//semvReal(proc->blockSem);
+		}
     }
     return 0;
 }
@@ -210,7 +208,7 @@ int Sleep(int seconds) {
 
 	USLOSS_Sysargs sysArg;
 
-	CHECKMODE;
+	//CHECKMODE;
 	sysArg.number = SYS_SLEEP;
 	sysArg.arg1 = (void *)((long)seconds);
 
@@ -223,7 +221,7 @@ void sleep(USLOSS_Sysargs *args) {
 
 	isKernelMode("sleep");
 
-	int seconds = args->arg1;
+	int seconds = (int)((long)args->arg1);
 
 	if (isZapped())
 		terminateReal(1);
@@ -242,10 +240,13 @@ int sleepReal(int seconds) {
 	if (seconds < 0)
 		return ERR_INVALID;
 
+	int status;
 	int timeNow = waitDevice(USLOSS_CLOCK_DEV, 0, &status);
 	int wakeTime = timeNow + seconds;
+	int pid = getpid();
 
-	procPtr proc = ProcTable[GetPID];
+
+	procPtr proc = &ProcTable[pid];
 	proc->wakeTime = wakeTime;
 	enqueueSleeper(proc);
 
@@ -654,6 +655,7 @@ void addDiskQ(diskQueue* q, procPtr p) {
 /* queues a sleeper into the sleep queue based on its wake up time */
 void enqueueSleeper(procPtr p) {
 	// first add
+	diskQueue* q = &sleepQueue;
 	if (q->head == NULL) {
 		q->head = q->tail = p;
 		q->head->nextDiskPtr = q->tail->nextDiskPtr = NULL;
@@ -663,7 +665,7 @@ void enqueueSleeper(procPtr p) {
 		// find the right location to add
 		procPtr prev = q->tail;
 		procPtr next = q->head;
-		while (next != NULL && next->waitTIme <= p->waitTime) {
+		while (next != NULL && next->wakeTime <= p->wakeTime) {
 			prev = next;
 			next = next->nextDiskPtr;
 			if (next == q->head)
