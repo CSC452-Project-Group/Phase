@@ -297,8 +297,12 @@ DiskDriver(char *arg)
 
             // handle tracks request
             if (proc->diskRequest.opr == USLOSS_DISK_TRACKS) {
-                USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &proc->diskRequest);
-                result = waitDevice(USLOSS_DISK_DEV, unit, &status);
+                int check = USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &proc->diskRequest);
+                if(check == USLOSS_DEV_INVALID){
+		    USLOSS_Console("DiskDirver(): check invalid, returning\n");
+		    return 0;
+		}
+		result = waitDevice(USLOSS_DISK_DEV, unit, &status);
                 if (result != 0) {
                     return 0;
                 }
@@ -309,8 +313,12 @@ DiskDriver(char *arg)
                     USLOSS_DeviceRequest request;
                     request.opr = USLOSS_DISK_SEEK;
                     request.reg1 = &track;
-                    USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &request);
-                    result = waitDevice(USLOSS_DISK_DEV, unit, &status);
+                    int Check = USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &request);
+                    if(Check == USLOSS_DEV_INVALID){
+                    USLOSS_Console("DiskDirver(): Check invalid, returning\n");
+                    return 0;
+                }
+		    result = waitDevice(USLOSS_DISK_DEV, unit, &status);
                     if (result != 0) {
                         return 0;
                     }
@@ -322,8 +330,12 @@ DiskDriver(char *arg)
                     int sec;
                     for (sec = proc->diskFirstSec; proc->diskSectors > 0 && sec < USLOSS_DISK_TRACK_SIZE; sec++) {
                         proc->diskRequest.reg1 = (void *) ((long) sec);
-                        USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &proc->diskRequest);
-                        result = waitDevice(USLOSS_DISK_DEV, unit, &status);
+                        int co = USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &proc->diskRequest);
+                        if(co == USLOSS_DEV_INVALID){
+                    	    USLOSS_Console("DiskDirver(): co invalid, returning\n");
+                    	    return 0;
+                }
+			result = waitDevice(USLOSS_DISK_DEV, unit, &status);
                         if (result != 0) {
                             return 0;
                         }
