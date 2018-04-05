@@ -22,6 +22,10 @@ int  semRunning;
 
 int  ClockDriver(char *);
 int  DiskDriver(char *);
+int  TermDriver(char *);
+int  TermReader(char *);
+int  TermWriter(char *);
+
 void isKernelMode(char *);
 void setUserMode();
 void initProc(int);
