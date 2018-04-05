@@ -25,6 +25,15 @@ int  DiskDriver(char *);
 int  TermDriver(char *);
 int  TermReader(char *);
 int  TermWriter(char *);
+int diskWriteReal(int, int, int, int, void *);
+void diskWrite(USLOSS_Sysargs*);
+int diskReadOrWrite();
+int diskSizeReal(int, int*, int*, int*);
+void diskSize(USLOSS_Sysargs*);
+int termReadReal(int, int, char *);
+void termRead(USLOSS_Sysargs*);
+int termWriteReal(int, int, char *);
+void termWrite(USLOSS_Sysargs*);
 
 void isKernelMode(char *);
 void setUserMode();
