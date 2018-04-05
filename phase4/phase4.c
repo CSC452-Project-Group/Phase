@@ -200,22 +200,10 @@ ClockDriver(char *arg)
 			proc = removeDiskQ(&sleepQueue);
 			USLOSS_Console("ClockDriver: Waking up process %d\n", proc->pid);
 			semvReal(proc->blockSem);
+			USLOSS_Console("ClockDriver: after semvReal\n");
 		}
     }
     return 0;
-}
-
-int Sleep(int seconds) {
-
-	USLOSS_Sysargs sysArg;
-
-	//CHECKMODE;
-	sysArg.number = SYS_SLEEP;
-	sysArg.arg1 = (void *)((long)seconds);
-
-	USLOSS_Syscall(&sysArg);
-
-	return (int)((long)sysArg.arg4);
 }
 
 void sleep(USLOSS_Sysargs *args) {
@@ -231,6 +219,10 @@ void sleep(USLOSS_Sysargs *args) {
 
 	args->arg4 = (void *)((long)result);
 
+	int pid = getpid();
+
+	USLOSS_Console("sleep(): after wake up\n");
+
 	setUserMode();
 }
 
@@ -241,15 +233,18 @@ int sleepReal(int seconds) {
 	if (seconds < 0)
 		return ERR_INVALID;
 
-	int status;
-	int timeNow = waitDevice(USLOSS_CLOCK_DEV, 0, &status);
-	int wakeTime = timeNow + seconds;
+	long status;
+	gettimeofdayReal(&status);
+	int wakeTime = status + (seconds * 1000000);
 	int pid = getpid();
 
-
-	procPtr proc = &ProcTable[pid];
+	procPtr proc = &ProcTable[pid%MAXPROC];
 	proc->wakeTime = wakeTime;
 	enqueueSleeper(proc);
+
+	USLOSS_Console("sleepReal(): before sempReal\n");
+	sempReal(proc->blockSem);
+	USLOSS_Console("sleepReal(): after wake up\n");
 
 	return ERR_OK;
 }
