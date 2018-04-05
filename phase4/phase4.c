@@ -65,6 +65,7 @@ start3(void)
 {
     char	name[128];
     char        termbuf[10];
+    char        diskbuf[10];
     int		i;
     int		clockPID;
     int		pid;
