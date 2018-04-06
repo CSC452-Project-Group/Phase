@@ -160,7 +160,7 @@ start3(void)
     /*
      * Zap the device drivers
      */
-    zap(clockPID);  // clock driver
+    zap(clockPID);  // clock drive
 
     // eventually, at the end:
     quit(0);
@@ -196,11 +196,12 @@ ClockDriver(char *arg)
 		 */
 
 		procPtr proc;
-		while (peekDiskQ(&sleepQueue)->wakeTime < status) {
+		while (peekDiskQ(&sleepQueue) != NULL && peekDiskQ(&sleepQueue)->wakeTime < status) {
 			proc = removeDiskQ(&sleepQueue);
-			USLOSS_Console("ClockDriver: Waking up process %d\n", proc->pid);
+			//USLOSS_Console("ClockDriver(): Waking up process %d\n", proc->pid);
+			//USLOSS_Console("clockDriver(): semaphore %d\n", proc->blockSem);
 			semvReal(proc->blockSem);
-			USLOSS_Console("ClockDriver: after semvReal\n");
+			//USLOSS_Console("ClockDriver(): after semvReal\n");
 		}
     }
     return 0;
@@ -219,9 +220,7 @@ void sleep(USLOSS_Sysargs *args) {
 
 	args->arg4 = (void *)((long)result);
 
-	int pid = getpid();
-
-	USLOSS_Console("sleep(): after wake up\n");
+	//USLOSS_Console("sleep(): after wake up\n");
 
 	setUserMode();
 }
@@ -242,9 +241,9 @@ int sleepReal(int seconds) {
 	proc->wakeTime = wakeTime;
 	enqueueSleeper(proc);
 
-	USLOSS_Console("sleepReal(): before sempReal\n");
+	//USLOSS_Console("sleepReal(): before sempReal\n");
 	sempReal(proc->blockSem);
-	USLOSS_Console("sleepReal(): after wake up\n");
+	//USLOSS_Console("sleepReal(): after wake up\n");
 
 	return ERR_OK;
 }
@@ -710,7 +709,7 @@ procPtr removeDiskQ(diskQueue* q) {
         q->curr = q->head;
     }
 
-    USLOSS_Console("removeDiskQ: called, size = %d, curr pid = %d, curr track = %d\n", q->size, q->curr->pid, q->curr->diskTrack);
+    //USLOSS_Console("removeDiskQ: called, size = %d, curr pid = %d, curr track = %d\n", q->size, q->curr->pid, q->curr->diskTrack);
 
     procPtr temp = q->curr;
 
@@ -740,7 +739,7 @@ procPtr removeDiskQ(diskQueue* q) {
 
     q->size--;
 
-    USLOSS_Console("removeDiskQ: done, size = %d, curr pid = %d, curr track = %d\n", q->size, temp->pid, temp->diskTrack);
+    //USLOSS_Console("removeDiskQ: done, size = %d, curr pid = %d, curr track = %d\n", q->size, temp->pid, temp->diskTrack);
 
     return temp;
 } 
