@@ -161,6 +161,13 @@ start3(void)
      * Zap the device drivers
      */
     zap(clockPID);  // clock drive
+	for (i = 0; i < USLOSS_DISK_UNITS; i++) {
+		semvReal(ProcTable[diskPids[i]].blockSem);
+		zap(diskPids[i]);
+		join(&status);
+	}
+
+	//dumpProcesses();
 
     // eventually, at the end:
     quit(0);
@@ -277,7 +284,7 @@ DiskDriver(char *arg)
     while(!isZapped()) {
         // block on sem until we get request
         sempReal(me->blockSem);
-        USLOSS_Console("DiskDriver: unit %d unblocked, zapped = %d, queue size = %d\n", unit, isZapped(), diskQs[unit].size);
+        //USLOSS_Console("DiskDriver: unit %d unblocked, zapped = %d, queue size = %d\n", unit, isZapped(), diskQs[unit].size);
         
         if (isZapped()){
             return 0;
