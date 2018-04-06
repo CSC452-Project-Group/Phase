@@ -15,7 +15,7 @@ void sleep(USLOSS_Sysargs *args);
 int sleepReal(int seconds);
 void diskRead(USLOSS_Sysargs *args);
 int diskReadReal(int unit, int track, int first, int sectors, void *buffer);
-//void enqueueSleeper(procPtr p);
+void enqueueSleeper(procPtr p);
 
 /* ---------------------------- Globals -------------------------------*/
 int  semRunning;
@@ -42,16 +42,13 @@ void initDiskQueue(diskQueue*);
 void addDiskQ(diskQueue*, procPtr);
 procPtr peekDiskQ(diskQueue*);
 procPtr removeDiskQ(diskQueue*);
-void initHeap(heap *);
-void heapAdd(heap *, procPtr);
-procPtr heapPeek(heap *);
-procPtr heapRemove(heap *);
+
 /* Globals */
 procStruct ProcTable[MAXPROC];
 
 int diskZapped; // indicates if the disk drivers are 'zapped' or not
 diskQueue diskQs[USLOSS_DISK_UNITS]; // queues for disk drivers
-heap sleepH; // queue for the sleeping user proccesses
+diskQueue sleepQueue; // queue for the sleeping user proccesses
 int diskPids[USLOSS_DISK_UNITS]; // pids of the disk drivers
 
 // mailboxes for terminal device
@@ -66,9 +63,9 @@ int termProcTable[USLOSS_TERM_UNITS][3]; // keep track of term procs
 void
 start3(void)
 {
-    //char	name[128];
-    //char        termbuf[10];
-    //char        diskbuf[10];
+    char	name[128];
+    char        termbuf[10];
+    char        diskbuf[10];
     int		i;
     int		clockPID;
     int		pid;
@@ -82,8 +79,7 @@ start3(void)
     for (i = 0; i < MAXPROC; i++) {
         initProc(i);
     }
-
-    initHeap(&sleepH);    
+    
     // initialize systemCallVec
     systemCallVec[SYS_SLEEP] = sleep;
     systemCallVec[SYS_DISKREAD] = diskRead;
@@ -101,6 +97,7 @@ start3(void)
         pidMbox[i] = MboxCreate(1, sizeof(int));
     }
 
+	initDiskQueue(&sleepQueue); // initialize the sleep queue
 
     /*
      * Create clock device driver 
@@ -108,9 +105,7 @@ start3(void)
      * be used instead -- your choice.
      */
     semRunning = semcreateReal(0);
-    //USLOSS_Console("start4(): Before fork 1\n");
     clockPID = fork1("Clock driver", ClockDriver, NULL, USLOSS_MIN_STACK, 2);
-    //USLOSS_Console("start4(): After fork 1\n");
     if (clockPID < 0) {
 	USLOSS_Console("start3(): Can't create clock driver\n");
 	USLOSS_Halt(1);
@@ -119,9 +114,8 @@ start3(void)
      * Wait for the clock driver to start. The idea is that ClockDriver
      * will V the semaphore "semRunning" once it is running.
      */
-    //USLOSS_Console("start4(): Before sempReal\n");
+
     sempReal(semRunning);
-    //USLOSS_Console("start4(): After sempReal\n");
 
     /*
      * Create the disk device drivers here.  You may need to increase
@@ -131,23 +125,18 @@ start3(void)
 
     int temp;
     for (i = 0; i < USLOSS_DISK_UNITS; i++) {
-        char diskbuf[10];
         sprintf(diskbuf, "%d", i);
-	//USLOSS_Console("start4(): Before second fork 1\n");
         pid = fork1("Disk driver", DiskDriver, diskbuf, USLOSS_MIN_STACK, 2);
-	//USLOSS_Console("start4(): After second fork 1\n");
         if (pid < 0) {
             USLOSS_Console("start3(): Can't create disk driver %d\n", i);
             USLOSS_Halt(1);
         }
 
         diskPids[i] = pid;
-        //USLOSS_Console("start4(): Before second sempReal\n");
-        //sempReal(semRunning); // changed wait for driver to start running
-	USLOSS_Console("start4(): After second sempReal before diskSizeReal\n");
+        sempReal(semRunning); // wait for driver to start running
+
         //TODO: get number of tracks, implement diskSizeReal
-        //diskSizeReal(i, &temp, &temp, &ProcTable[pid % MAXPROC].diskTrack);
-	USLOSS_Console("start4(): After diskSizeReal\n");
+        diskSizeReal(i, &temp, &temp, &ProcTable[pid % MAXPROC].diskTrack);
     }
 
 
@@ -156,23 +145,7 @@ start3(void)
     /*
      * Create terminal device drivers.
      */
-    USLOSS_Console("start4: before term\n");
-    for (i = 0; i < USLOSS_TERM_UNITS; i++) {
-        char termbuf[10];
-	sprintf(termbuf, "%d", i); 
-        USLOSS_Console("start4: before fork1\n");
-        termProcTable[i][0] = fork1("Term driver", TermDriver, termbuf, USLOSS_MIN_STACK, 2);
-        termProcTable[i][1] = fork1("Term reader", TermReader, termbuf, USLOSS_MIN_STACK, 2);
-        termProcTable[i][2] = fork1("Term writer", TermWriter, termbuf, USLOSS_MIN_STACK, 2);
-        USLOSS_Console("start4: after fork1, before first semRunning %d\n", semRunning);
-        sempReal(semRunning);
-        USLOSS_Console("start4: before second semRunning %d\n", semRunning);
-        sempReal(semRunning);
-        USLOSS_Console("start4: before third semRunning %d\n", semRunning);
-        sempReal(semRunning);
-        USLOSS_Console("start4: after third semRunning %d\n", semRunning);
-     }
-     USLOSS_Console("start4: after term\n");
+
 
     /*
      * Create first user-level process and wait for it to finish.
@@ -181,40 +154,13 @@ start3(void)
      * I'm assuming kernel-mode versions of the system calls
      * with lower-case first letters, as shown in provided_prototypes.h
      */
-    USLOSS_Console("start4: before spawnReal\n");
     pid = spawnReal("start4", start4, NULL, 4 * USLOSS_MIN_STACK, 3);
-    USLOSS_Console("start4: after spawnReal\n");
-    //pid = waitReal(&status);
-    if ( waitReal(&status) != pid ) {
-        USLOSS_Console("start3(): join returned something other than ");
-        USLOSS_Console("start3's pid\n");
-    }
+    pid = waitReal(&status);
 
     /*
      * Zap the device drivers
      */
-    //status = 0;
-    USLOSS_Console("start4: before first zap\n");
     zap(clockPID);  // clock driver
-    semvReal(ProcTable[diskPids[0]].pid);
-    USLOSS_Console("start4: before second zap\n");
-    zap(diskPids[0]);
-    semvReal(ProcTable[diskPids[1]].pid);
-    USLOSS_Console("start4: before third zap\n");
-    zap(diskPids[1]);
-    // zap disk drivers
-    for (i = 0; i < USLOSS_DISK_UNITS; i++) {
-        semvReal(ProcTable[diskPids[i]].blockSem); 
-        zap(diskPids[i]);
-        join(&status);
-    }
-    USLOSS_Console("start4: end of start4\n");
-    //TODO: zap termreader
-
-    //TODO: zap termwriter
-
-    //TODO: zap termdriver, etc
-    
 
     // eventually, at the end:
     quit(0);
@@ -240,21 +186,22 @@ ClockDriver(char *arg)
     }
     // Infinite loop until we are zap'd
     while(! isZapped()) {
-	result = waitDevice(USLOSS_CLOCK_DEV, 0, &status);
-	if (result != 0) {
-	    return 0;
-	}
-	    /*
-	    * Compute the current time and wake up any processes
-	    * whose time has come.
-	    */
+		result = waitDevice(USLOSS_CLOCK_DEV, 0, &status);
+		if (result != 0) {
+			return 0;
+		}
+		/*
+		 * Compute the current time and wake up any processes
+		 * whose time has come.
+		 */
 
-	procPtr proc;
-    	while (sleepH.size > 0 && status >= heapPeek(&sleepH)->wakeTime) {
-            proc = heapRemove(&sleepH);
-            USLOSS_Console("ClockDriver: Waking up process %d\n", proc->pid);
-            semvReal(proc->blockSem); 
-        }
+		procPtr proc;
+		while (peekDiskQ(&sleepQueue)->wakeTime < status) {
+			proc = removeDiskQ(&sleepQueue);
+			USLOSS_Console("ClockDriver: Waking up process %d\n", proc->pid);
+			semvReal(proc->blockSem);
+			USLOSS_Console("ClockDriver: after semvReal\n");
+		}
     }
     return 0;
 }
@@ -263,16 +210,16 @@ void sleep(USLOSS_Sysargs *args) {
 
 	isKernelMode("sleep");
 
-	int seconds = (long)args->arg1;
+	int seconds = (int)((long)args->arg1);
 
-	//if (isZapped())
-	//	terminateReal(1);
+	if (isZapped())
+		terminateReal(1);
 
 	int result = sleepReal(seconds);
 
 	args->arg4 = (void *)((long)result);
 
-	//int pid = getpid();
+	int pid = getpid();
 
 	USLOSS_Console("sleep(): after wake up\n");
 
@@ -280,31 +227,26 @@ void sleep(USLOSS_Sysargs *args) {
 }
 
 int sleepReal(int seconds) {
-    long status;
-    isKernelMode("sleepReal");
-    USLOSS_Console("sleepReal: called for process %d with %d seconds\n", getpid(), seconds);
 
-    if (seconds < 0) {
-        return -1;
-    }
+	isKernelMode("sleepReal");
 
-    // init/get the process
-    if (ProcTable[getpid() % MAXPROC].pid == -1) {
-        initProc(getpid());
-    }
-    procPtr proc = &ProcTable[getpid() % MAXPROC];
-    
-    // set wake time
-    gettimeofdayReal(&status);
-    proc->wakeTime = status + seconds*1000000;
-    USLOSS_Console("sleepReal: set wake time for process %d to %d, adding to heap...\n", proc->pid, proc->wakeTime);
+	if (seconds < 0)
+		return ERR_INVALID;
 
-    heapAdd(&sleepH, proc); // add to sleep heap
-    USLOSS_Console("sleepReal: Process %d going to sleep until %d\n", proc->pid, proc->wakeTime);
-    sempReal(proc->blockSem); // block the process
-    USLOSS_Console("sleepReal: Process %d woke up, time is %d\n", proc->pid, status);
-    return 0;
+	long status;
+	gettimeofdayReal(&status);
+	int wakeTime = status + (seconds * 1000000);
+	int pid = getpid();
 
+	procPtr proc = &ProcTable[pid%MAXPROC];
+	proc->wakeTime = wakeTime;
+	enqueueSleeper(proc);
+
+	USLOSS_Console("sleepReal(): before sempReal\n");
+	sempReal(proc->blockSem);
+	USLOSS_Console("sleepReal(): after wake up\n");
+
+	return ERR_OK;
 }
 
 /********************************************************************************/
@@ -352,12 +294,12 @@ DiskDriver(char *arg)
             // handle tracks request
             if (proc->diskRequest.opr == USLOSS_DISK_TRACKS) {
                 int check = USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &proc->diskRequest);
-                if(check != USLOSS_DEV_OK){
+                if(check == USLOSS_DEV_INVALID){
 		    USLOSS_Console("DiskDirver(): check invalid, returning\n");
 		    return 0;
 		}
 		result = waitDevice(USLOSS_DISK_DEV, unit, &status);
-                if (result != USLOSS_DEV_OK) {//changed
+                if (result != 0) {
                     return 0;
                 }
             }
@@ -568,39 +510,6 @@ diskSizeReal(int unit, int *sector, int *track, int *disk)
     // check kernel mode
     isKernelMode("diskSizeReal");
 
-    // check for illegal args
-    if (unit < 0 || unit > 1 || sector == NULL || track == NULL || disk == NULL) {
-        USLOSS_Console("diskSizeReal: given illegal argument(s), returning -1\n");
-        return -1;
-    }
-
-    procPtr driver = &ProcTable[diskPids[unit]];
-
-    // get the number of tracks for the first time
-    if (driver->diskTrack == -1) {
-        // init/get the process
-        if (ProcTable[getpid() % MAXPROC].pid == -1) {
-            initProc(getpid());
-        }
-        procPtr proc = &ProcTable[getpid() % MAXPROC];
-
-        // set variables
-        proc->diskTrack = 0;
-        USLOSS_DeviceRequest request;
-        request.opr = USLOSS_DISK_TRACKS;
-        request.reg1 = &driver->diskTrack;
-        proc->diskRequest = request;
-
-        addDiskQ(&diskQs[unit], proc); // add to disk queue 
-        semvReal(driver->blockSem);  // wake up disk driver
-        sempReal(proc->blockSem); // block
-
-        USLOSS_Console("diskSizeReal: number of tracks on unit %d: %d\n", unit, driver->diskTrack);
-    }
-
-    *sector = USLOSS_DISK_SECTOR_SIZE;
-    *track = USLOSS_DISK_TRACK_SIZE;
-    *disk = driver->diskTrack;
     return 0;
 } /* diskSizeReal */
 
@@ -751,6 +660,39 @@ void addDiskQ(diskQueue* q, procPtr p) {
     USLOSS_Console("addDiskQ: add complete, size = %d\n", q->size);
 } 
 
+/* queues a sleeper into the sleep queue based on its wake up time */
+void enqueueSleeper(procPtr p) {
+	// first add
+	diskQueue* q = &sleepQueue;
+	if (q->head == NULL) {
+		q->head = q->tail = p;
+		q->head->nextDiskPtr = q->tail->nextDiskPtr = NULL;
+		q->head->prevDiskPtr = q->tail->prevDiskPtr = NULL;
+	}
+	else {
+		// find the right location to add
+		procPtr prev = q->tail;
+		procPtr next = q->head;
+		while (next != NULL && next->wakeTime <= p->wakeTime) {
+			prev = next;
+			next = next->nextDiskPtr;
+			if (next == q->head)
+				break;
+		}
+		prev->nextDiskPtr = p;
+		p->prevDiskPtr = prev;
+		if (next == NULL)
+			next = q->head;
+		p->nextDiskPtr = next;
+		next->prevDiskPtr = p;
+		if (p->diskTrack < q->head->diskTrack)
+			q->head = p; // update head
+		if (p->diskTrack >= q->tail->diskTrack)
+			q->tail = p; // update tail
+	}
+	q->size++;
+}
+
 /* Returns the next proc on the disk queue */
 procPtr peekDiskQ(diskQueue* q) {
     if (q->curr == NULL) {
@@ -802,69 +744,6 @@ procPtr removeDiskQ(diskQueue* q) {
 
     return temp;
 } 
-
-
-/* Setup heap*/
-void initHeap(heap* h) {
-    h->size = 0;
-}
-
-/* Add to heap */
-void heapAdd(heap * h, procPtr p) {
-    // start from bottom and find correct place
-    int i, parent;
-    for (i = h->size; i > 0; i = parent) {
-        parent = (i-1)/2;
-        if (h->procs[parent]->wakeTime <= p->wakeTime)
-            break;
-        // move parent down
-        h->procs[i] = h->procs[parent];
-    }
-    h->procs[i] = p; // put at final location
-    h->size++;
-    USLOSS_Console("heapAdd: Added proc %d to heap at index %d, size = %d\n", p->pid, i, h->size);
-} 
-
-/* Return min process on heap */
-procPtr heapPeek(heap * h) {
-    return h->procs[0];
-}
-
-/* Remove earlist waking process form the heap */
-procPtr heapRemove(heap * h) {
-  if (h->size == 0)
-    return NULL;
-
-    procPtr removed = h->procs[0]; // remove min
-    h->size--;
-    h->procs[0] = h->procs[h->size]; // put last in first spot
-
-    // re-heapify
-    int i = 0, left, right, min = 0;
-    while (i*2 <= h->size) {
-        // get locations of children
-        left = i*2 + 1;
-        right = i*2 + 2;
-
-        // get min child
-        if (left <= h->size && h->procs[left]->wakeTime < h->procs[min]->wakeTime) 
-            min = left;
-        if (right <= h->size && h->procs[right]->wakeTime < h->procs[min]->wakeTime) 
-            min = right;
-
-        // swap current with min child if needed
-        if (min != i) {
-            procPtr temp = h->procs[i];
-            h->procs[i] = h->procs[min];
-            h->procs[min] = temp;
-            i = min;
-        }
-        else
-            break; // otherwise we're done
-    }
-    USLOSS_Console("heapRemove: Called, returning pid %d, size = %d\n", removed->pid, h->size);
-    return removed;
-}
 
 
 
