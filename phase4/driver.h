@@ -13,6 +13,13 @@ struct diskQueue {
 	int 	 type; /* which procPtr to use for next */
 };
 
+
+typedef struct heap heap;
+struct heap {
+  int size;
+  procPtr procs[MAXPROC];
+};
+
 /* 
 * Process struct for phase 4
 */
