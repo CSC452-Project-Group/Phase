@@ -16,6 +16,7 @@ int sleepReal(int seconds);
 void diskRead(USLOSS_Sysargs *args);
 int diskReadReal(int unit, int track, int first, int sectors, void *buffer);
 void enqueueSleeper(procPtr p);
+procPtr deq4(diskQueue* q);
 
 /* ---------------------------- Globals -------------------------------*/
 int  semRunning;
@@ -204,7 +205,7 @@ ClockDriver(char *arg)
 
 		procPtr proc;
 		while (peekDiskQ(&sleepQueue) != NULL && peekDiskQ(&sleepQueue)->wakeTime < status) {
-			proc = removeDiskQ(&sleepQueue);
+			proc = deq4(&sleepQueue);
 			//USLOSS_Console("ClockDriver(): Waking up process %d\n", proc->pid);
 			//USLOSS_Console("clockDriver(): semaphore %d\n", proc->blockSem);
 			semvReal(proc->blockSem);
@@ -423,6 +424,22 @@ void
 diskRead(USLOSS_Sysargs* args)
 {
     // check kernel mode
+	isKernelMode("diskRead");
+
+	void* buffer = args->arg1;
+	int unit = (int)((long)args->arg2);
+	int track = (int)((long)args->arg3);
+	int first = (int)((long)args->arg4);
+	int sectors = (int)((long)args->arg5);
+
+	if (unit <= 0 || unit >= USLOSS_DISK_UNITS) {
+		args->arg5 = (void*)(long)-1;
+		return;
+	}
+
+	args->arg1 = (void*)(long)diskReadReal(unit, track, first, sectors, buffer);
+	 
+
 }/* diskRead */
 
 /* ------------------------------------------------------------------------
@@ -441,8 +458,25 @@ diskReadReal(int unit, int track, int first, int sectors, void *buffer)
     // check kernel mode
     isKernelMode("diskReadReal");
 
+	procPtr proc = &ProcTable[getpid()&MAXPROC];
 
-    return 0;
+	proc->diskBuffer = buffer;
+	proc->diskFirstSec = first;
+	proc->diskSectors = sectors;
+	proc->diskTrack = track;
+	USLOSS_DeviceRequest req;
+	req.opr = USLOSS_DISK_READ;
+	proc->diskRequest = req;
+	
+	MboxSend(diskPids[unit], NULL, 0);
+	addDiskQ(&diskQs[unit], proc);
+	MboxReceive(diskPids[unit], NULL, 0);
+
+	int val = MboxCondSend(diskPids[unit], NULL, 0);
+
+	MboxReceive(proc->mboxID, NULL, 0);
+
+    return val;
 } /* diskReadReal */
 
 /* ------------------------------------------------------------------------
@@ -462,6 +496,21 @@ diskWrite(USLOSS_Sysargs* args)
 {
     // check kernel mode
     isKernelMode("diskWrite");
+
+	void* buffer = args->arg1;
+	int unit = (int)((long)args->arg2);
+	int track = (int)((long)args->arg3);
+	int first = (int)((long)args->arg4);
+	int sectors = (int)((long)args->arg5);
+
+	if (unit <= 0 || unit >= USLOSS_DISK_UNITS) {
+		args->arg5 = (void*)(long)-1;
+		return;
+	}
+
+	int val = diskReadReal(unit, track, first, sectors, buffer);
+
+	args->arg1 = (void*)(long)val;
 
 } /* diskWrite */
 
@@ -750,6 +799,21 @@ procPtr removeDiskQ(diskQueue* q) {
 
     return temp;
 } 
+
+procPtr deq4(diskQueue* q) {
+	procPtr temp = q->head;
+	if (q->head == NULL) {
+		return NULL;
+	}
+	if (q->head == q->tail) {
+		q->head = q->tail = NULL;
+	}
+	else {
+		q->head = q->head->nextDiskPtr;
+	}
+	q->size--;
+	return temp;
+}
 
 
 
