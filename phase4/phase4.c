@@ -34,7 +34,8 @@ int termReadReal(int, int, char *);
 void termRead(USLOSS_Sysargs*);
 int termWriteReal(int, int, char *);
 void termWrite(USLOSS_Sysargs*);
-
+void push_clockQueue(procPtr);
+void pop_clockQueue();
 void isKernelMode(char *);
 void setUserMode();
 void initProc(int);
@@ -42,7 +43,7 @@ void initDiskQueue(diskQueue*);
 void addDiskQ(diskQueue*, procPtr);
 procPtr peekDiskQ(diskQueue*);
 procPtr removeDiskQ(diskQueue*);
-
+procPtr deq4(diskQueue*);
 /* Globals */
 procStruct ProcTable[MAXPROC];
 
@@ -51,6 +52,11 @@ diskQueue diskQs[USLOSS_DISK_UNITS]; // queues for disk drivers
 diskQueue sleepQueue; // queue for the sleeping user proccesses
 int diskPids[USLOSS_DISK_UNITS]; // pids of the disk drivers
 
+typedef struct heap heap;
+struct heap {
+  int size;
+  procPtr procs[MAXPROC];
+};
 // mailboxes for terminal device
 int charRecvMbox[USLOSS_TERM_UNITS]; // receive char
 int charSendMbox[USLOSS_TERM_UNITS]; // send char
@@ -58,13 +64,13 @@ int lineReadMbox[USLOSS_TERM_UNITS]; // read line
 int lineWriteMbox[USLOSS_TERM_UNITS]; // write line
 int pidMbox[USLOSS_TERM_UNITS]; // pid to block
 int termInt[USLOSS_TERM_UNITS]; // interupt for term (control writing)
-int termProcTable[USLOSS_TERM_UNITS][3]; // keep track of term procs
-
+int termPID[USLOSS_TERM_UNITS][3]; // keep track of term procs
+procPtr clockQueue;
 void
 start3(void)
 {
-    char	name[128];
-    char        termbuf[10];
+//    char	name[128];
+//    char        termbuf[10];
     char        diskbuf[10];
     int		i;
     int		clockPID;
@@ -136,7 +142,7 @@ start3(void)
         sempReal(semRunning); // wait for driver to start running
 
         //TODO: get number of tracks, implement diskSizeReal
-        diskSizeReal(i, &temp, &temp, &ProcTable[pid % MAXPROC].diskTrack);
+        //diskSizeReal(i, &temp, &temp, &ProcTable[pid % MAXPROC].diskTrack);
     }
 
 
@@ -145,7 +151,16 @@ start3(void)
     /*
      * Create terminal device drivers.
      */
-
+    for (i = 0; i < USLOSS_TERM_UNITS; i++) {
+        char termbuf[10];
+        sprintf(termbuf, "%d", i); 
+        termPID[i][0] = fork1("Term driver", TermDriver, termbuf, USLOSS_MIN_STACK, 2);
+        termPID[i][1] = fork1("Term reader", TermReader, termbuf, USLOSS_MIN_STACK, 2);
+        termPID[i][2] = fork1("Term writer", TermWriter, termbuf, USLOSS_MIN_STACK, 2);
+        sempReal(semRunning);
+        sempReal(semRunning);
+        sempReal(semRunning);
+     }
 
     /*
      * Create first user-level process and wait for it to finish.
@@ -155,20 +170,34 @@ start3(void)
      * with lower-case first letters, as shown in provided_prototypes.h
      */
     pid = spawnReal("start4", start4, NULL, 4 * USLOSS_MIN_STACK, 3);
-    pid = waitReal(&status);
-
+    //pid = waitReal(&status);
+    if ( waitReal(&status) != pid ) {
+        USLOSS_Console("start3(): join returned something other than ");
+        USLOSS_Console("start3's pid\n");
+    }
     /*
      * Zap the device drivers
      */
-    zap(clockPID);  // clock drive
-	for (i = 0; i < USLOSS_DISK_UNITS; i++) {
-		semvReal(ProcTable[diskPids[i]].blockSem);
-		zap(diskPids[i]);
-		join(&status);
-	}
+    zap(clockPID);
+    //join(&status);  // clock drive
+    for (i = 0; i < USLOSS_DISK_UNITS; i++) {
+	semvReal(ProcTable[diskPids[i]].blockSem);
+	zap(diskPids[i]);
+	//join(&status);
+    }
 
 	//dumpProcesses();
-
+    for (i = 0; i < USLOSS_TERM_UNITS; i++) {
+        semvReal(ProcTable[termPID[i][0]].blockSem);
+        zap(termPID[i][0]);
+        join(&status);        
+        semvReal(ProcTable[termPID[i][1]].blockSem);
+        zap(termPID[i][1]);        
+        join(&status);         
+        semvReal(ProcTable[termPID[i][2]].blockSem);
+        zap(termPID[i][2]);
+        join(&status);         
+     }
     // eventually, at the end:
     quit(0);
     
@@ -203,11 +232,12 @@ ClockDriver(char *arg)
 		 */
 
 		procPtr proc;
-		while (peekDiskQ(&sleepQueue) != NULL && peekDiskQ(&sleepQueue)->wakeTime < status) {
-			proc = removeDiskQ(&sleepQueue);
+		while (clockQueue != NULL && clockQueue->wakeTime < status) {
+			//deq4(&sleepQueue);
 			//USLOSS_Console("ClockDriver(): Waking up process %d\n", proc->pid);
 			//USLOSS_Console("clockDriver(): semaphore %d\n", proc->blockSem);
-			semvReal(proc->blockSem);
+			semvReal(clockQueue->blockSem);
+			pop_clockQueue();
 			//USLOSS_Console("ClockDriver(): after semvReal\n");
 		}
     }
@@ -218,7 +248,7 @@ void sleep(USLOSS_Sysargs *args) {
 
 	isKernelMode("sleep");
 
-	int seconds = (int)((long)args->arg1);
+	int seconds = (long)args->arg1;
 
 	if (isZapped())
 		terminateReal(1);
@@ -235,24 +265,23 @@ void sleep(USLOSS_Sysargs *args) {
 int sleepReal(int seconds) {
 
 	isKernelMode("sleepReal");
-
-	if (seconds < 0)
-		return ERR_INVALID;
-
 	long status;
-	gettimeofdayReal(&status);
-	int wakeTime = status + (seconds * 1000000);
-	int pid = getpid();
+	long pid;
+	if (seconds < 0)
+		return -1;
+	else{
+	    gettimeofdayReal(&status);
+            int wakeupTime = seconds*1000000 + status;
+            getPID_real(&pid);
+            ProcTable[pid%MAXPROC].wakeTime = wakeupTime;
+            if(ProcTable[pid%MAXPROC].blockSem == -1){
+                ProcTable[pid%MAXPROC].blockSem = semcreateReal(0);
+            }
+            push_clockQueue(&ProcTable[pid%MAXPROC]);
+            sempReal(ProcTable[pid%MAXPROC].blockSem);
+            return 0;
 
-	procPtr proc = &ProcTable[pid%MAXPROC];
-	proc->wakeTime = wakeTime;
-	enqueueSleeper(proc);
-
-	//USLOSS_Console("sleepReal(): before sempReal\n");
-	sempReal(proc->blockSem);
-	//USLOSS_Console("sleepReal(): after wake up\n");
-
-	return ERR_OK;
+	}
 }
 
 /********************************************************************************/
@@ -271,7 +300,7 @@ DiskDriver(char *arg)
     procPtr me = &ProcTable[getpid() % MAXPROC];
     initDiskQueue(&diskQs[unit]);
 
-    USLOSS_Console("DiskDriver: unit %d started, pid = %d\n", unit, me->pid);
+    //USLOSS_Console("DiskDriver: unit %d started, pid = %d\n", unit, me->pid);
 
     // Let the parent know we are running and enable interrupts.
     semvReal(semRunning);
@@ -378,6 +407,15 @@ DiskDriver(char *arg)
 int
 TermDriver(char *arg)
 {
+    int unit = atoi( (char *) arg);
+    procPtr driver = &ProcTable[termPID[unit][0]];
+    driver->blockSem = semcreateReal(0);
+    semvReal(semRunning);
+    while(1){
+      sempReal(driver->blockSem);
+      if(isZapped())
+          break; 
+    }
     return 0;
 } /* TermDriver */
 
@@ -391,6 +429,15 @@ TermDriver(char *arg)
 int
 TermReader(char *arg)
 {
+    int unit = atoi( (char *) arg);
+    procPtr driver = &ProcTable[termPID[unit][1]];
+    driver->blockSem = semcreateReal(0);
+    semvReal(semRunning);
+    while(1){
+      sempReal(driver->blockSem);
+      if(isZapped())
+          break;
+    }
     return 0;
 } /* TermReader */
 
@@ -404,6 +451,15 @@ TermReader(char *arg)
 int
 TermWriter(char *arg)
 {
+    int unit = atoi( (char *) arg);
+    procPtr driver = &ProcTable[termPID[unit][2]];
+    driver->blockSem = semcreateReal(0);
+    semvReal(semRunning);
+    while(1){
+      sempReal(driver->blockSem);
+      if(isZapped())
+        break;
+    }
     return 0;
 } /* TermWriter */
 
@@ -534,7 +590,13 @@ termRead(USLOSS_Sysargs* args)
 {
     // check kernel mode
     isKernelMode("termRead");
+    int status = termReadReal((long)args->arg3, (long)args->arg2, \
+                              (char*)args->arg1);
 
+    args->arg2 = (void*)(long)status;
+    args->arg4 = status == -1 ? (void*)(long)-1 : (void*)(long)0;
+
+    setUserMode();   
 } /* termRead */
 
 /* ------------------------------------------------------------------------
@@ -566,7 +628,15 @@ void
 termWrite(USLOSS_Sysargs* args)
 {
     // check kernel mode
-    
+    isKernelMode("termWrite");
+
+    int status = termReadReal((long)args->arg3, (long)args->arg2, \
+                              (char*)args->arg1);
+
+    args->arg2 = (void*)(long)status;
+    args->arg4 = status == -1 ? (void*)(long)-1 : (void*)(long)0;
+
+    setUserMode();
 } /* termWrite */
 
 /* ------------------------------------------------------------------------
@@ -751,35 +821,33 @@ procPtr removeDiskQ(diskQueue* q) {
     return temp;
 } 
 
+procPtr deq4(diskQueue* q){
+    if(q->head != NULL)
+	q->head = q->head->nextDiskPtr;
+}
 
 
 
+void
+push_clockQueue(procPtr node)
+{
+    if(clockQueue == NULL || clockQueue->wakeTime > node->wakeTime){
+        procPtr curr = clockQueue;
+        clockQueue = node;
+        node->nextclockQueueProc = curr;
+    }
+    else{
+        procPtr curr = clockQueue;
+        while(curr->nextclockQueueProc != NULL && curr->nextclockQueueProc->wakeTime <= node->wakeTime)
+            curr = curr->nextclockQueueProc;
+        node->nextclockQueueProc = curr->nextclockQueueProc;
+        curr->nextclockQueueProc = node;
+    } 
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+void
+pop_clockQueue()
+{
+    if(clockQueue != NULL)
+        clockQueue = clockQueue->nextclockQueueProc;
+}

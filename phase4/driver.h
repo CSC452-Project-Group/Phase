@@ -14,12 +14,6 @@ struct diskQueue {
 };
 
 
-typedef struct heap heap;
-struct heap {
-  int size;
-  procPtr procs[MAXPROC];
-};
-
 /* 
 * Process struct for phase 4
 */
@@ -34,5 +28,6 @@ struct procStruct {
   void 		  *diskBuffer;
   procPtr 	  prevDiskPtr;
   procPtr 	  nextDiskPtr;
+  procPtr	  nextclockQueueProc;
   USLOSS_DeviceRequest diskRequest;
 };
