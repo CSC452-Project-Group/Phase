@@ -204,7 +204,7 @@ ClockDriver(char *arg)
 		 */
 
 		procPtr proc;
-		while (peekDiskQ(&sleepQueue) != NULL && peekDiskQ(&sleepQueue)->wakeTime < status) {
+		while (sleepQueue.size > 0 && peekDiskQ(&sleepQueue)->wakeTime < status) {
 			proc = deq4(&sleepQueue);
 			//USLOSS_Console("ClockDriver(): Waking up process %d\n", proc->pid);
 			//USLOSS_Console("clockDriver(): semaphore %d\n", proc->blockSem);
@@ -246,6 +246,7 @@ int sleepReal(int seconds) {
 	int pid = getpid();
 
 	procPtr proc = &ProcTable[pid%MAXPROC];
+	proc->pid = pid;
 	proc->wakeTime = wakeTime;
 	enqueueSleeper(proc);
 
