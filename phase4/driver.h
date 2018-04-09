@@ -13,6 +13,7 @@ struct diskQueue {
 	int 	 type; /* which procPtr to use for next */
 };
 
+
 /* 
 * Process struct for phase 4
 */
@@ -27,5 +28,6 @@ struct procStruct {
   void 		  *diskBuffer;
   procPtr 	  prevDiskPtr;
   procPtr 	  nextDiskPtr;
+  procPtr	  nextclockQueueProc;
   USLOSS_DeviceRequest diskRequest;
 };

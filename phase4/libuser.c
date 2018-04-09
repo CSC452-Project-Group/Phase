@@ -197,7 +197,7 @@ int TermWrite(char *buff, int bsize, int unit_id, int *nwrite)
     USLOSS_Syscall(&sysArg);
 
     *nwrite = (long) sysArg.arg2;
-    return (int)(long) sysArg.arg4;
+    return (long) sysArg.arg4;
 }
 
 
