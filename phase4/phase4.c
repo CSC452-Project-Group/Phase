@@ -229,11 +229,11 @@ start3(void)
 
         // actual termdriver zap
         zap(termPID[i][0]);
-		USLOSS_Console("start3(): after zap of term %d \n", i);
+	//	USLOSS_Console("start3(): after zap of term %d \n", i);
         join(&ctrl);
 		//dumpProcesses();
     }
-	USLOSS_Console("Start3(): end of zaps\n");
+	//USLOSS_Console("Start3(): end of zaps\n");
     // eventually, at the end:
     quit(0);
     
