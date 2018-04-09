@@ -198,17 +198,17 @@ start3(void)
 	zap(termPID[i][1]);        
         join(&status);         
     }
-
+	//dumpProcesses();
     for (i = 0; i < USLOSS_TERM_UNITS; i++) {
 	//semvReal(ProcTable[termPID[i][2]].blockSem);
         MboxSend(lineWriteMbox[i], NULL, 0);
 	zap(termPID[i][2]);
         join(&status);         
      }
-
+	//dumpProcesses();
     char filename[50];
     for(i = 0; i < USLOSS_TERM_UNITS; i++)
-    {
+    {	
         int ctrl = 0;
         ctrl = USLOSS_TERM_CTRL_RECV_INT(ctrl);
         int result = USLOSS_DeviceOutput(USLOSS_TERM_DEV, i, (void *)((long) ctrl));
@@ -216,6 +216,9 @@ start3(void)
         	USLOSS_Console("ERROR: USLOSS_TERM_DEV failed! Exiting....'n");
         	USLOSS_Halt(1);
     	}
+
+		procPtr curTerm = &ProcTable[termPID[i][0]];
+		semvReal(curTerm->blockSem);
 
         // file stuff
         sprintf(filename, "term%d.in", i);
@@ -226,8 +229,11 @@ start3(void)
 
         // actual termdriver zap
         zap(termPID[i][0]);
-        join(&status);
+		USLOSS_Console("start3(): after zap of term %d \n", i);
+        join(&ctrl);
+		//dumpProcesses();
     }
+	USLOSS_Console("Start3(): end of zaps\n");
     // eventually, at the end:
     quit(0);
     
@@ -382,7 +388,7 @@ DiskDriver(char *arg)
 						return 0;
 					}
   
-					USLOSS_Console("DiskDriver: seeked to track %d, status = %d, result = %d\n", track, status, result);
+					//USLOSS_Console("DiskDriver: seeked to track %d, status = %d, result = %d\n", track, status, result);
 
                     
                     //USLOSS_Console("DiskDriver: seeked to track %d, status = %d, result = %d\n", track, status, result);
@@ -444,10 +450,14 @@ TermDriver(char *arg)
     semvReal(semRunning);
     //USLOSS_Console("TermDriver (unit %d): running\n", unit);
 
-    while (!isZapped()) {
+	procPtr me = &ProcTable[getpid() % MAXPROC];
+	sempReal(me->blockSem);
 
+    while (!isZapped()) {
+		//USLOSS_Console("TermDriver//(): term driver with pid %d in while\n", getpid());
         result = waitDevice(USLOSS_TERM_INT, unit, &status);
         if (result != 0) {
+			USLOSS_Console("TermDriver(): after waitDevice\n");
             return 0;
         }
 
@@ -469,7 +479,7 @@ TermDriver(char *arg)
             USLOSS_Console("TermDriver XMIT ERROR\n");
         }
     }
-
+	
     return 0;
 } /* TermDriver */
 

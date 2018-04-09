@@ -1,0 +1,11 @@
+start4(): started
+          going to sleep for 5 seconds.
+start4(): Sleep starts at    686
+start4(): Sleep done at  5090041
+start4(): done.
+start3(): after zap of term 0 
+start3(): after zap of term 1 
+start3(): after zap of term 2 
+start3(): after zap of term 3 
+Start3(): end of zaps
+All processes completed.
