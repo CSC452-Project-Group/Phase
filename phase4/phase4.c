@@ -103,7 +103,6 @@ start3(void)
         pidMbox[i] = MboxCreate(1, sizeof(int));
     }
 
-	initDiskQueue(&sleepQueue); // initialize the sleep queue
 
     /*
      * Create clock device driver 
@@ -181,11 +180,19 @@ start3(void)
     status = 0;
     zap(clockPID);
     join(&status);  // clock drive
+    
+
     for (i = 0; i < USLOSS_DISK_UNITS; i++) {
 	semvReal(ProcTable[diskPids[i]].blockSem);
 	zap(diskPids[i]);
 	join(&status);
     }
+    //semvReal(ProcTable[diskPids[0]].blockSem);
+    
+    // zap disk driver
+    //zap(diskPids[0]);
+    //semvReal(ProcTable[diskPids[1]].blockSem);
+    //zap(diskPids[1]);
 
 	//dumpProcesses();
     for (i = 0; i < USLOSS_TERM_UNITS; i++) {
@@ -345,7 +352,7 @@ DiskDriver(char *arg)
         //USLOSS_Console("DiskDriver: unit %d unblocked, zapped = %d, queue size = %d\n", unit, isZapped(), diskQs[unit].size);
         
         if (isZapped()){
-            return 0;
+            break;
 	}
         // get request off queue
         if (diskQs[unit].size > 0) {
@@ -437,15 +444,28 @@ int
 TermDriver(char *arg)
 {
     int result;
+    int start = 0;
     int status;
     int unit = atoi( (char *) arg);     // Unit is passed as arg.
 
     semvReal(semRunning);
     //USLOSS_Console("TermDriver (unit %d): running\n", unit);
 
-    while (!isZapped()) {
+    while (1) {
+	if(isZapped())
+	    break;
 
-        result = waitDevice(USLOSS_TERM_INT, unit, &status);
+	if(start == 0){
+	    status = 0;
+            status = USLOSS_TERM_CTRL_RECV_INT(status);
+            result = USLOSS_DeviceOutput(USLOSS_TERM_DEV, unit, (void *)(long)status);
+            if(result != USLOSS_DEV_OK) {
+                return 0;
+            }
+            start = 100;
+	}
+	USLOSS_Console("");
+        result = waitDevice(USLOSS_TERM_DEV, unit, &status);
         if (result != 0) {
             return 0;
         }
