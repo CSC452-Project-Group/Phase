@@ -298,64 +298,61 @@ DiskDriver(char *arg)
 
             USLOSS_Console("DiskDriver: taking request from pid %d, track %d\n", proc->pid, proc->diskTrack);
             
-
             // handle tracks request
             if (proc->diskRequest.opr == USLOSS_DISK_TRACKS) {
                 int check = USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &proc->diskRequest);
-                if(check == USLOSS_DEV_INVALID){
-		    USLOSS_Console("DiskDirver(): check invalid, returning\n");
-		    return 0;
-		}
-		result = waitDevice(USLOSS_DISK_DEV, unit, &status);
+				if(check == USLOSS_DEV_INVALID){
+					USLOSS_Console("DiskDirver(): check invalid, returning\n");
+					return 0;
+				}
+				result = waitDevice(USLOSS_DISK_DEV, unit, &status);
                 if (result != 0) {
                     return 0;
                 }
             }
-
             else { // handle read/write requests
                 while (proc->diskSectors > 0) {
-                    USLOSS_DeviceRequest request;
-                    request.opr = USLOSS_DISK_SEEK;
-                    request.reg1 = &track;
-                    int Check = USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &request);
-                    if(Check == USLOSS_DEV_INVALID){
-                    USLOSS_Console("DiskDirver(): Check invalid, returning\n");
-                    return 0;
-                }
-		    result = waitDevice(USLOSS_DISK_DEV, unit, &status);
-                    if (result != 0) {
-                        return 0;
-                    }
+					USLOSS_DeviceRequest request;
+					request.opr = USLOSS_DISK_SEEK;
+					request.reg1 = &track;
+					int Check = USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &request);
+					if(Check == USLOSS_DEV_INVALID){
+					USLOSS_Console("DiskDirver(): Check invalid, returning\n");
+					return 0;
+					}
+					result = waitDevice(USLOSS_DISK_DEV, unit, &status);
+					if (result != 0) {
+						return 0;
+					}
+  
+					USLOSS_Console("DiskDriver: seeked to track %d, status = %d, result = %d\n", track, status, result);
 
-                    
-                    USLOSS_Console("DiskDriver: seeked to track %d, status = %d, result = %d\n", track, status, result);
+					// read/write the sectors
+					int sec;
+					for (sec = proc->diskFirstSec; proc->diskSectors > 0 && sec < USLOSS_DISK_TRACK_SIZE; sec++) {
+						proc->diskRequest.reg1 = (void *) ((long) sec);
+						int co = USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &proc->diskRequest);
+						if(co == USLOSS_DEV_INVALID){
+                    		USLOSS_Console("DiskDirver(): co invalid, returning\n");
+                    		return 0;
+						}
+						result = waitDevice(USLOSS_DISK_DEV, unit, &status);
+						if (result != 0) {
+							return 0;
+						}
 
-                    // read/write the sectors
-                    int sec;
-                    for (sec = proc->diskFirstSec; proc->diskSectors > 0 && sec < USLOSS_DISK_TRACK_SIZE; sec++) {
-                        proc->diskRequest.reg1 = (void *) ((long) sec);
-                        int co = USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &proc->diskRequest);
-                        if(co == USLOSS_DEV_INVALID){
-                    	    USLOSS_Console("DiskDirver(): co invalid, returning\n");
-                    	    return 0;
-                }
-			result = waitDevice(USLOSS_DISK_DEV, unit, &status);
-                        if (result != 0) {
-                            return 0;
-                        }
-
-                        USLOSS_Console("DiskDriver: read/wrote sector %d, status = %d, result = %d, buffer = %s\n", sec, status, result, proc->diskRequest.reg2);
+						USLOSS_Console("DiskDriver: read/wrote sector %d, status = %d, result = %d, buffer = %s\n", sec, status, result, proc->diskRequest.reg2);
                         
 
-                        proc->diskSectors--;
-                        proc->diskRequest.reg2 += USLOSS_DISK_SECTOR_SIZE;
-                    }
+						proc->diskSectors--;
+						proc->diskRequest.reg2 += USLOSS_DISK_SECTOR_SIZE;
+					}
 
-                    // request first sector of next track
-                    track++;
-                    proc->diskFirstSec = 0;
-                }
-            }
+					// request first sector of next track
+					track++;
+					proc->diskFirstSec = 0;
+				}
+			}
 
             USLOSS_Console("DiskDriver: finished request from pid %d\n", proc->pid, result, status);
 
@@ -509,8 +506,16 @@ diskWrite(USLOSS_Sysargs* args)
 		return;
 	}
 
-	int val = diskReadReal(unit, track, first, sectors, buffer);
+	int numTracks = -1;
+	int i = getNumTracksOnDisk(unit, &numTracks);
+	i++;
 
+	if (track < 0 || track > numTracks - 1 || first < 0 || first > 15) {
+		args->arg5 = (void*)(long)INVALID_PARAMETERS;
+		return;
+	}
+
+	int val = diskReadReal(unit, track, first, sectors, buffer);
 	args->arg1 = (void*)(long)val;
 
 } /* diskWrite */
@@ -531,7 +536,25 @@ diskWriteReal(int unit, int track, int first, int sectors, void *buffer)
     // check kernel mode
     isKernelMode("diskWriteReal");
 
-    return 0;
+	procPtr proc = &ProcTable[getpid()&MAXPROC];
+
+	proc->diskBuffer = buffer;
+	proc->diskFirstSec = first;
+	proc->diskSectors = sectors;
+	proc->diskTrack = track;
+	USLOSS_DeviceRequest req;
+	req.opr = USLOSS_DISK_WRITE;
+	proc->diskRequest = req;
+
+	MboxSend(diskPids[unit], NULL, 0);
+	addDiskQ(&diskQs[unit], proc);
+	MboxReceive(diskPids[unit], NULL, 0);
+
+	int val = MboxCondSend(diskPids[unit], NULL, 0);
+
+	MboxReceive(proc->mboxID, NULL, 0);
+
+	return val;
 } /* diskWriteReal */
 
 /* ------------------------------------------------------------------------
@@ -550,6 +573,15 @@ diskSize(USLOSS_Sysargs* args)
     // check kernel mode
     isKernelMode("diskSize");
 
+	int unit = (int)(long)args->arg1;
+	int* sector = (int*)args->arg2;
+	int* track = (int*)args->arg3;
+	int* disk = (int*)args->arg4;
+
+	int result = diskSizeReal(unit, sector, track, disk);
+
+	args->arg5 = (void*)(long)result;
+
 } /* diskSize */
 
 /* ------------------------------------------------------------------------
@@ -566,7 +598,12 @@ diskSizeReal(int unit, int *sector, int *track, int *disk)
     // check kernel mode
     isKernelMode("diskSizeReal");
 
-    return 0;
+	*sector = USLOSS_DISK_SECTOR_SIZE;
+	*track = USLOSS_DISK_TRACK_SIZE;
+
+	int result = getNumTracks(unit, disk);
+
+	return (void*)((long)result);
 } /* diskSizeReal */
 
 /* ------------------------------------------------------------------------
@@ -666,6 +703,19 @@ void initProc(int pid) {
     ProcTable[i].diskTrack = -1;
     ProcTable[i].nextDiskPtr = NULL;
     ProcTable[i].prevDiskPtr = NULL;
+}
+
+int getNumTracks(int unit, int* disk) {
+	int status = -1;
+	USLOSS_DeviceRequest request;
+	request.opr = USLOSS_DISK_TRACKS;
+	request.reg1 = (void*)(long)disk;
+
+	MboxSend(semRunning, NULL, 0);
+	int result = USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &request);
+	result = waitDevice(USLOSS_DISK_DEV, unit, &status);
+	MboxReceive(semRunning, NULL, 0);
+	return result;
 }
 
 /* ------------------------------------------------------------------------
