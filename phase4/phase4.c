@@ -15,9 +15,6 @@ void sleep(USLOSS_Sysargs *args);
 int sleepReal(int seconds);
 void diskRead(USLOSS_Sysargs *args);
 int diskReadReal(int unit, int track, int first, int sectors, void *buffer);
-void enqueueSleeper(procPtr p);
-
-/* ---------------------------- Globals -------------------------------*/
 int  semRunning;
 
 int  ClockDriver(char *);
@@ -27,7 +24,7 @@ int  TermReader(char *);
 int  TermWriter(char *);
 int diskWriteReal(int, int, int, int, void *);
 void diskWrite(USLOSS_Sysargs*);
-int diskReadOrWrite();
+int diskRW();
 int diskSizeReal(int, int*, int*, int*);
 void diskSize(USLOSS_Sysargs*);
 int termReadReal(int, int, char *);
@@ -35,30 +32,15 @@ void termRead(USLOSS_Sysargs*);
 int termWriteReal(int, int, char *);
 void termWrite(USLOSS_Sysargs*);
 void push_clockQueue(procPtr);
-void pop_clockQueue();
-void push_diskQueue(procPtr);
-procPtr pop_diskQueue(int);
+void peek_clockQueue();
+void add_diskQueue(procPtr);
+procPtr peek_diskQueue(int);
 void isKernelMode(char *);
 void setUserMode();
 void initProc(int);
-//void initDiskQueue(diskQueue*);
-//void addDiskQ(diskQueue*, procPtr);
-//procPtr peekDiskQ(diskQueue*);
-//procPtr removeDiskQ(diskQueue*);
-//procPtr deq4(diskQueue*);
-/* Globals */
 procStruct ProcTable[MAXPROC];
-
-int diskZapped; // indicates if the disk drivers are 'zapped' or not
-//diskQueue diskQs[USLOSS_DISK_UNITS]; // queues for disk drivers
-//diskQueue sleepQueue; // queue for the sleeping user proccesses
 int diskPID[USLOSS_DISK_UNITS]; // pids of the disk drivers
 procPtr diskQueue[USLOSS_DISK_UNITS];
-typedef struct heap heap;
-struct heap {
-  int size;
-  procPtr procs[MAXPROC];
-};
 // mailboxes for terminal device
 int charRecvMbox[USLOSS_TERM_UNITS]; // receive char
 int charSendMbox[USLOSS_TERM_UNITS]; // send char
@@ -71,9 +53,6 @@ procPtr clockQueue;
 void
 start3(void)
 {
-//    char	name[128];
-//    char        termbuf[10];
-    char        diskbuf[10];
     int		i;
     int		clockPID;
     int		pid;
@@ -104,9 +83,6 @@ start3(void)
         lineWriteMbox[i] = MboxCreate(10, MAXLINE); 
         pidMbox[i] = MboxCreate(1, sizeof(int));
     }
-
-	//initDiskQueue(&sleepQueue); // initialize the sleep queue
-
     /*
      * Create clock device driver 
      * I am assuming a semaphore here for coordination.  A mailbox can
@@ -183,21 +159,22 @@ start3(void)
 	semvReal(ProcTable[diskPID[i]].blockSem);
 	zap(diskPID[i]);
 	join(&status);
-    }
-
+    }/*
+    semvReal(ProcTable[diskPID[0]].blockSem);
+    
+    // zap disk driver
+    zap(diskPID[0]);
+    semvReal(ProcTable[diskPID[1]].blockSem);
+    zap(diskPID[1]);
+*/
 	//dumpProcesses();
     for (i = 0; i < USLOSS_TERM_UNITS; i++) {
-        //semvReal(ProcTable[termPID[i][0]].blockSem);
-        //zap(termPID[i][0]);
-        //join(&status);        
-        //semvReal(ProcTable[termPID[i][1]].blockSem);
         MboxSend(charRecvMbox[i], NULL, 0);
 	zap(termPID[i][1]);        
         join(&status);         
     }
 
     for (i = 0; i < USLOSS_TERM_UNITS; i++) {
-	//semvReal(ProcTable[termPID[i][2]].blockSem);
         MboxSend(lineWriteMbox[i], NULL, 0);
 	zap(termPID[i][2]);
         join(&status);         
@@ -258,13 +235,13 @@ ClockDriver(char *arg)
 		 * whose time has come.
 		 */
 
-		procPtr proc;
+		//procPtr proc;
 		while (clockQueue != NULL && clockQueue->wakeTime < status) {
 			//deq4(&sleepQueue);
 			//USLOSS_Console("ClockDriver(): Waking up process %d\n", proc->pid);
 			//USLOSS_Console("clockDriver(): semaphore %d\n", proc->blockSem);
 			semvReal(clockQueue->blockSem);
-			pop_clockQueue();
+			peek_clockQueue();
 			//USLOSS_Console("ClockDriver(): after semvReal\n");
 		}
     }
@@ -340,7 +317,7 @@ DiskDriver(char *arg)
             break;
 
         // get process node from disk queue
-        procPtr node = pop_diskQueue(unit);
+        procPtr node = peek_diskQueue(unit);
 
         // get request from disk operation
         // tracks request
@@ -401,14 +378,9 @@ DiskDriver(char *arg)
     return 0;
 }
 
-
-/* ------------------------------------------------------------------------
-   Name - TermDriver
-   Purpose -
-   Parameters -
-   Returns -
-   Side Effects -
-   ----------------------------------------------------------------------- */
+/********************************************************************************/
+/* -------------------------------- TermDriver -------------------------------- */
+/********************************************************************************/
 int
 TermDriver(char *arg)
 {
@@ -448,13 +420,9 @@ TermDriver(char *arg)
     return 0;
 } /* TermDriver */
 
-/* ------------------------------------------------------------------------
-   Name - TermReader
-   Purpose -
-   Parameters -
-   Returns -
-   Side Effects -
-   ----------------------------------------------------------------------- */
+/********************************************************************************/
+/* -------------------------------- TermReader -------------------------------- */
+/********************************************************************************/
 int
 TermReader(char *arg)
 {
@@ -493,13 +461,9 @@ TermReader(char *arg)
     return 0;
 } /* TermReader */
 
-/* ------------------------------------------------------------------------
-   Name - TermWriter
-   Purpose -
-   Parameters -
-   Returns -
-   Side Effects -
-   ----------------------------------------------------------------------- */
+/********************************************************************************/
+/* -------------------------------- TermWriter -------------------------------- */
+/********************************************************************************/
 int
 TermWriter(char *arg)
 {
@@ -508,6 +472,7 @@ TermWriter(char *arg)
     int ctrl = 0;
     int next;
     int status;
+    int pdd;
     char line[MAXLINE];
 
     semvReal(semRunning);
@@ -515,7 +480,7 @@ TermWriter(char *arg)
 
     while (!isZapped()) {
         size = MboxReceive(lineWriteMbox[unit], line, MAXLINE); // get line and size
-
+  	//MboxReceive(termPID[unit], &pdd, sizeof(int));
         if (isZapped())
             break;
 
@@ -562,6 +527,12 @@ TermWriter(char *arg)
                 USLOSS_Halt(1);
         }
 	termInt[unit] = 0;
+   	char filename[50];
+    	sprintf(filename, "term%d.in", unit);
+    	FILE *f = fopen(filename, "a+");
+    	fprintf(f, "last line\n");
+    	fflush(f);
+    	fclose(f);
         int pid; 
         MboxReceive(pidMbox[unit], &pid, sizeof(int));
         semvReal(ProcTable[pid % MAXPROC].blockSem);
@@ -572,18 +543,9 @@ TermWriter(char *arg)
     return 0;
 } /* TermWriter */
 
-/* ------------------------------------------------------------------------
-   Name - diskRead
-   Purpose - Reads one or more sectors from a disk.
-   Parameters - arg1: the memory address to which to transfer
-                arg2: number of sectors to read
-                arg3: the starting disk track number
-                arg4: the starting disk sector number
-                arg5: the unit number of the disk from which to read
-   Returns - arg1: 0 if transfer was successful; the disk status register otherwise.
-             arg4: -1 if illegal values are given as input; 0 otherwise.
-   Side Effects - call diskReadReal
-   ----------------------------------------------------------------------- */
+/********************************************************************************/
+/* -------------------------------- diskRead -------------------------------- */
+/********************************************************************************/
 void
 diskRead(USLOSS_Sysargs* args)
 {
@@ -594,19 +556,11 @@ diskRead(USLOSS_Sysargs* args)
     args->arg1 = (void*)(long)status;
     args->arg4 = status == -1 ? (void*)(long)-1 : (void*)(long)0;
     setUserMode();    
-// check kernel mode
 }/* diskRead */
 
-/* ------------------------------------------------------------------------
-   Name - diskReadReal
-   Purpose - Reads sectors sectors from the disk indicated by unit, starting
-             at track track and sector first.
-   Parameters - Required by diskRead
-   Returns - -1 if invalid parameters
-              0 if sectors were read successfully
-             >0 if disk’s status register
-   Side Effects - none.
-   ----------------------------------------------------------------------- */
+/********************************************************************************/
+/* -------------------------------- diskReadReal ------------------------------ */
+/********************************************************************************/
 int
 diskReadReal(int unit, int track, int first, int sectors, void *buffer)
 {
@@ -629,21 +583,12 @@ diskReadReal(int unit, int track, int first, int sectors, void *buffer)
     ProcTable[pid%MAXPROC].diskRequest.reg2 = buffer;    
     ProcTable[pid%MAXPROC].diskRequest.opr = USLOSS_DISK_READ;
 
-    return diskReadOrWrite();
+    return diskRW();
 } /* diskReadReal */
 
-/* ------------------------------------------------------------------------
-   Name - diskWrite
-   Purpose - Writes one or more sectors to the disk.
-   Parameters - arg1: the memory address from which to transfer.
-                arg2: number of sectors to write.
-                arg3: the starting disk track number.
-                arg4: the starting disk sector number.
-                arg5: the unit number of the disk to write.
-   Returns - arg1: 0 if transfer was successful; the disk status register otherwise.
-             arg4: -1 if illegal values are given as input; 0 otherwise.
-   Side Effects - call diskWriteReal
-   ----------------------------------------------------------------------- */
+/********************************************************************************/
+/* -------------------------------- diskWrite -------------------------------- */
+/********************************************************************************/
 void
 diskWrite(USLOSS_Sysargs* args)
 {
@@ -656,16 +601,9 @@ diskWrite(USLOSS_Sysargs* args)
     setUserMode();
 } /* diskWrite */
 
-/* ------------------------------------------------------------------------
-   Name - diskWriteReal
-   Purpose - Writes sectors sectors to the disk indicated by unit, starting
-             at track track and sector first
-   Parameters - Required by diskWrite
-   Returns - -1 if invalid parameters
-              0 if sectors were written successfully
-             >0 if disk’s status register
-   Side Effects - none.
-   ----------------------------------------------------------------------- */
+/********************************************************************************/
+/* -------------------------------- diskWriteReal------------------------------ */
+/********************************************************************************/
 int
 diskWriteReal(int unit, int track, int first, int sectors, void *buffer)
 {
@@ -688,11 +626,14 @@ diskWriteReal(int unit, int track, int first, int sectors, void *buffer)
     ProcTable[pid%MAXPROC].diskRequest.reg2 = buffer;    
     ProcTable[pid%MAXPROC].diskRequest.opr = USLOSS_DISK_WRITE;
 
-    return diskReadOrWrite();
+    return diskRW();
 } /* diskWriteReal */
 
+/********************************************************************************/
+/* -------------------------------- diskRorW -------------------------------- */
+/********************************************************************************/
 int
-diskReadOrWrite()
+diskRW()
 {
     long pid;
     int status, result;
@@ -707,20 +648,22 @@ diskReadOrWrite()
         return -1;
     }
 
-    push_diskQueue(curr);
+    add_diskQueue(curr);
     semvReal(ProcTable[diskPID[curr->unit]].blockSem);
     sempReal(curr->blockSem);
 
     result = USLOSS_DeviceInput(USLOSS_DISK_DEV, curr->unit, &status);
     if(result != USLOSS_DEV_OK) {
-        USLOSS_Console("diskReadOrWrite(): USLOSS_TERM_DEV failed! Exiting....\n");
+        USLOSS_Console("diskRW(): USLOSS_TERM_DEV failed! Exiting....\n");
         USLOSS_Halt(1);
     }
 
     return result;
-} /* diskReadOrWrite */
+} /* diskRW */
 
-/* extract values from sysargs and call diskSizeReal */
+/********************************************************************************/
+/* -------------------------------- diskSize -------------------------------- */
+/********************************************************************************/
 void diskSize(USLOSS_Sysargs* args) {
     isKernelMode("diskSize");
     int unit = (long) args->arg1;
@@ -734,14 +677,9 @@ void diskSize(USLOSS_Sysargs* args) {
 }
 
 
-/* ------------------------------------------------------------------------
-   Name - diskSizeReal
-   Purpose - Returns information about the size of the disk indicated by unit.
-   Parameters - Required by diskSize
-   Returns - -1 if invalid parameters
-              0 if disk size parameters returned successfully
-   Side Effects - none.
-   ----------------------------------------------------------------------- */
+/********************************************************************************/
+/* -------------------------------- diskSizeReal ------------------------------ */
+/********************************************************************************/
 int
 diskSizeReal(int unit, int *sector, int *track, int *disk)
 {
@@ -765,7 +703,7 @@ diskSizeReal(int unit, int *sector, int *track, int *disk)
         return -1;
     }
     
-    push_diskQueue(&ProcTable[pid%MAXPROC]);
+    add_diskQueue(&ProcTable[pid%MAXPROC]);
     semvReal(driver->blockSem);
     sempReal(ProcTable[pid%MAXPROC].blockSem);
 
@@ -776,16 +714,9 @@ diskSizeReal(int unit, int *sector, int *track, int *disk)
     
 } /* diskSizeReal */
 
-/* ------------------------------------------------------------------------
-   Name - termRead
-   Purpose - Read a line from a terminal
-   Parameters - arg1: address of the user’s line buffer.
-                arg2: maximum size of the buffer.
-                arg3: the unit number of the terminal from which to read.
-   Returns - arg2: number of characters read.
-             arg4: -1 if illegal values are given as input; 0 otherwise.
-   Side Effects - call termReadReal
-   ----------------------------------------------------------------------- */
+/********************************************************************************/
+/* -------------------------------- termRead ---------------------------------- */
+/********************************************************************************/
 void
 termRead(USLOSS_Sysargs* args)
 {
@@ -807,15 +738,9 @@ termRead(USLOSS_Sysargs* args)
     setUserMode();   
 } /* termRead */
 
-/* ------------------------------------------------------------------------
-   Name - termReadReal
-   Purpose - Reads a line of text from the terminal indicated
-             by unit into the buffer pointed to by buffer
-   Parameters - Required by termRead
-   Returns - -1 if invalid parameters
-             >0 if number of characters read
-   Side Effects - none.
-   ----------------------------------------------------------------------- */
+/********************************************************************************/
+/* -------------------------------- termReadReal ------------------------------ */
+/********************************************************************************/
 int
 termReadReal(int unit, int size, char *buffer)
 {
@@ -851,16 +776,9 @@ termReadReal(int unit, int size, char *buffer)
     return retval;
 } /* termReadReal */
 
-/* ------------------------------------------------------------------------
-   Name - termWrite
-   Purpose - Write a line to a terminal
-   Parameters - arg1: address of the user’s line buffer.
-                arg2: number of characters to write.
-                arg3: the unit number of the terminal to which to write.
-   Returns - arg2: number of characters written.
-             arg4: -1 if illegal values are given as input; 0 otherwise.
-   Side Effects - call termWriteReal
-   ----------------------------------------------------------------------- */
+/********************************************************************************/
+/* -------------------------------- termWrite -------------------------------- */
+/********************************************************************************/
 void
 termWrite(USLOSS_Sysargs* args)
 {
@@ -883,15 +801,9 @@ termWrite(USLOSS_Sysargs* args)
     setUserMode();
 } /* termWrite */
 
-/* ------------------------------------------------------------------------
-   Name - termWriteReal
-   Purpose - Writes size characters — a line of text pointed to by text to
-             the terminal indicated by unit
-   Parameters - Required by termWrite
-   Returns - -1 if invalid parameters
-             >0 if number of characters written
-   Side Effects - none.
-   ----------------------------------------------------------------------- */
+/********************************************************************************/
+/* -------------------------------- termWriteReal------------------------------ */
+/********************************************************************************/
 int
 termWriteReal(int unit, int size, char *text)
 {
@@ -951,9 +863,7 @@ void initProc(int pid) {
   Functions for the Queue
    ----------------------------------------------------------------------- */
 
-void
-push_diskQueue(procPtr node){
-
+void add_diskQueue(procPtr node){
     //get the disk unit
     int unit = node->unit;
 
@@ -963,29 +873,21 @@ push_diskQueue(procPtr node){
     }
     else{
         // push node accoring to the track number if disk queue is not empty
-        procPtr curr = diskQueue[unit];
-        if (curr->track > node->track){
+        procPtr temp = diskQueue[unit];
+        if (temp->track > node->track){
             diskQueue[unit] = node;
-            node->nextdiskQueueProc = curr;
+            node->nextdiskQueueProc = temp;
         }
         else{
-            while(curr->nextdiskQueueProc != NULL && curr->nextdiskQueueProc->track <= node->track)
-                curr = curr->nextdiskQueueProc;
-            node->nextdiskQueueProc = curr->nextdiskQueueProc;
-            curr->nextdiskQueueProc = node;
+            while(temp->nextdiskQueueProc != NULL && temp->nextdiskQueueProc->track <= node->track)
+                temp = temp->nextdiskQueueProc;
+            node->nextdiskQueueProc = temp->nextdiskQueueProc;
+            temp->nextdiskQueueProc = node;
         }
     }
-} /* push_diskQueue */
+} /* add_diskQueue */
 
-/* ------------------------------------------------------------------------
-   Name - pop_diskQueue
-   Purpose - Pop the process node from the disk queue according to the unit.
-   Parameters - disk unit
-   Returns - the process node from the disk queue
-   Side Effects - none
-   ------------------------------------------------------------------------ */
-procPtr
-pop_diskQueue(int unit){
+procPtr peek_diskQueue(int unit){
     procPtr queue = diskQueue[unit];
     int track = ProcTable[diskPID[unit]].track;
 
@@ -998,40 +900,38 @@ pop_diskQueue(int unit){
             queue = queue->nextdiskQueueProc;
         }
         if (queue->nextdiskQueueProc == NULL){
-            procPtr node = diskQueue[unit];
+            procPtr temp = diskQueue[unit];
             diskQueue[unit] = diskQueue[unit]->nextdiskQueueProc;
-            return node;
+            return temp;
         }
         else{
-            procPtr node = queue->nextdiskQueueProc;
-            queue->nextdiskQueueProc = node->nextdiskQueueProc;
-            return node;
+            procPtr temp = queue->nextdiskQueueProc;
+            queue->nextdiskQueueProc = temp->nextdiskQueueProc;
+            return temp;
         }
     }
-} /* pop_diskQueue */
-
-
+} /* peek_diskQueue */
 
 
 void
 push_clockQueue(procPtr node)
 {
     if(clockQueue == NULL || clockQueue->wakeTime > node->wakeTime){
-        procPtr curr = clockQueue;
+        procPtr temp = clockQueue;
         clockQueue = node;
-        node->nextclockQueueProc = curr;
+        node->nextclockQueueProc = temp;
     }
     else{
-        procPtr curr = clockQueue;
-        while(curr->nextclockQueueProc != NULL && curr->nextclockQueueProc->wakeTime <= node->wakeTime)
-            curr = curr->nextclockQueueProc;
-        node->nextclockQueueProc = curr->nextclockQueueProc;
-        curr->nextclockQueueProc = node;
+        procPtr temp = clockQueue;
+        while(temp->nextclockQueueProc != NULL && temp->nextclockQueueProc->wakeTime <= node->wakeTime)
+            temp = temp->nextclockQueueProc;
+        node->nextclockQueueProc = temp->nextclockQueueProc;
+        temp->nextclockQueueProc = node;
     } 
 }
 
 void
-pop_clockQueue()
+peek_clockQueue()
 {
     if(clockQueue != NULL)
         clockQueue = clockQueue->nextclockQueueProc;
