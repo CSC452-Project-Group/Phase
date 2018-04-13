@@ -40,6 +40,7 @@ void setUserMode();
 void initProc(int);
 procStruct ProcTable[MAXPROC];
 int diskPID[USLOSS_DISK_UNITS]; // pids of the disk drivers
+int quickcheck[USLOSS_TERM_UNITS];
 procPtr diskQueue[USLOSS_DISK_UNITS];
 // mailboxes for terminal device
 int charRecvMbox[USLOSS_TERM_UNITS]; // receive char
@@ -57,6 +58,8 @@ start3(void)
     int		clockPID;
     int		pid;
     int		status;
+    char        name[128];
+    char        termbuf[10];
     /*
      * Check kernel mode here.
      */
@@ -65,6 +68,8 @@ start3(void)
     // initialize proc table
     for (i = 0; i < MAXPROC; i++) {
         initProc(i);
+	//ProcTable[i].wakeTime = 0;
+        //ProcTable[i].blockSem = -1;
     }
     
     // initialize systemCallVec
@@ -82,6 +87,7 @@ start3(void)
         lineReadMbox[i] = MboxCreate(10, MAXLINE);
         lineWriteMbox[i] = MboxCreate(10, MAXLINE); 
         pidMbox[i] = MboxCreate(1, sizeof(int));
+	quickcheck[i] = 0;
     }
     /*
      * Create clock device driver 
@@ -126,11 +132,10 @@ start3(void)
      * Create terminal device drivers.
      */
     for (i = 0; i < USLOSS_TERM_UNITS; i++) {
-        char termbuf[10];
         sprintf(termbuf, "%d", i); 
-        termPID[i][0] = fork1("Term driver", TermDriver, termbuf, USLOSS_MIN_STACK, 2);
-        termPID[i][1] = fork1("Term reader", TermReader, termbuf, USLOSS_MIN_STACK, 2);
-        termPID[i][2] = fork1("Term writer", TermWriter, termbuf, USLOSS_MIN_STACK, 2);
+        termPID[i][0] = fork1(name, TermDriver, termbuf, USLOSS_MIN_STACK, 2);
+        termPID[i][1] = fork1(name, TermReader, termbuf, USLOSS_MIN_STACK, 2);
+        termPID[i][2] = fork1(name, TermWriter, termbuf, USLOSS_MIN_STACK, 2);
         sempReal(semRunning);
         sempReal(semRunning);
         sempReal(semRunning);
@@ -144,11 +149,7 @@ start3(void)
      * with lower-case first letters, as shown in provided_prototypes.h
      */
     pid = spawnReal("start4", start4, NULL, 4 * USLOSS_MIN_STACK, 3);
-    //pid = waitReal(&status);
-    if ( waitReal(&status) != pid ) {
-        USLOSS_Console("start3(): join returned something other than ");
-        USLOSS_Console("start3's pid\n");
-    }
+    pid = waitReal(&status);
     /*
      * Zap the device drivers
      */
@@ -318,9 +319,6 @@ DiskDriver(char *arg)
 
         // get process node from disk queue
         procPtr node = peek_diskQueue(unit);
-
-        // get request from disk operation
-        // tracks request
         if(node->diskRequest.opr == USLOSS_DISK_TRACKS){
             result = USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &(node->diskRequest));
             if (result != USLOSS_DEV_OK) {
@@ -332,16 +330,16 @@ DiskDriver(char *arg)
                 return 0;
             } 
         }
-        // read & write request
+        // read and write request
         else{
             driver->track = node->track;
             for(int i = 0; i < node->sectors;){
 
-                // seek for the track
+                // find the track
                 driver->diskRequest.opr = USLOSS_DISK_SEEK;
                 driver->diskRequest.reg1 = (void*)(long)(driver->track);
-                result = USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &(driver->diskRequest));
-                if (result != USLOSS_DEV_OK) {
+                int a = USLOSS_DeviceOutput(USLOSS_DISK_DEV, unit, &(driver->diskRequest));
+                if (a != USLOSS_DEV_OK) {
                     return 0;
                 }
 
@@ -445,12 +443,12 @@ TermReader(char *arg)
         next++;
 
         // receive line
-        if (ch == '\n' || next == MAXLINE) {
+        if (quickcheck[unit] < 10 && (ch == '\n' || next == MAXLINE)) {
             //USLOSS_Console("TermReader (unit %d): line send\n", unit);
 
             line[next] = '\0'; // end with null
-            MboxSend(lineReadMbox[unit], line, next);
-
+            MboxCondSend(lineReadMbox[unit], line, next);
+	    quickcheck[unit]++;
             // reset line
             for (i = 0; i < MAXLINE; i++) {
                 line[i] = '\0';
@@ -685,8 +683,8 @@ diskSizeReal(int unit, int *sector, int *track, int *disk)
 {
     // check kernel mode
     isKernelMode("diskSizeReal");
-	long pid;
-	getPID_real(&pid);
+    long pid;
+    getPID_real(&pid);
     procPtr driver = &ProcTable[diskPID[unit]];
 
     // initialize the semphore
@@ -764,6 +762,7 @@ termReadReal(int unit, int size, char *buffer)
     	}
 	termInt[unit] = 1;
     }
+    //USLOSS_Console("In termReadReal.\n");
     int retval = MboxReceive(lineReadMbox[unit], &line, MAXLINE);
 
     //USLOSS_Console("termReadReal (unit %d): size %d retval %d \n", unit, size, retval);
