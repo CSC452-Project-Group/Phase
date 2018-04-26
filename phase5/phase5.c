@@ -37,7 +37,9 @@ FaultMsg faults[MAXPROC]; /* Note that a process can have only
                            * and index them by pid. */
 VmStats  vmStats;
 FTE *frameTable = NULL;
-
+int pagerPID[MAXPAGERS];
+int fault_num;
+void *vmRegion = NULL;
 static void FaultHandler(int type, void * offset);
 
 static void vmInit(USLOSS_Sysargs *USLOSS_SysargsPtr);
@@ -330,7 +332,7 @@ Pager(char *buf)
          * replace a page (perhaps write to disk) */
         /* Load page into frame from disk, if necessary */
         /* Unblock waiting (faulting) process */
-	MboxReceive(fault_mid, &pid, sizeof(int));
+	MboxReceive(fault_num, &pid, sizeof(int));
         fault = &faults[pid%MAXPROC];
         if(isZapped())
             break;
