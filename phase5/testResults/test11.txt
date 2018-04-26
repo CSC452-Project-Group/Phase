@@ -1,0 +1,104 @@
+start5(): Running:    test11
+start5(): Pagers:     1
+          Mappings:   4
+          Pages:      4
+          Frames:     4
+          Children:   4
+          Iterations: 3
+          Priority:   5
+start5(): after call to VmInit, status = 0
+
+
+Child(11): starting
+Child(11): toPrint = 'A: This is page zero, pid = 11'
+Child(11): strlen(toPrint) = 30
+
+Child(12): starting
+Child(12): toPrint = 'B: This is page zero, pid = 12'
+Child(12): strlen(toPrint) = 30
+
+Child(13): starting
+Child(13): toPrint = 'C: This is page zero, pid = 13'
+Child(13): strlen(toPrint) = 30
+
+Child(14): starting
+Child(14): toPrint = 'D: This is page zero, pid = 14'
+Child(14): strlen(toPrint) = 30
+Child(11): after memcpy on iteration 0
+Child(11): strcmp first attempt to read worked!
+Child(12): after memcpy on iteration 0
+Child(12): strcmp first attempt to read worked!
+Child(13): after memcpy on iteration 0
+Child(13): strcmp first attempt to read worked!
+Child(14): after memcpy on iteration 0
+Child(14): strcmp first attempt to read worked!
+Child(11): strcmp second attempt to read worked!
+Child(11): toPrint = 'A: This is page one, pid = 11'
+Child(11): strlen(toPrint) = 29
+Child(12): strcmp second attempt to read worked!
+Child(12): toPrint = 'B: This is page one, pid = 12'
+Child(12): strlen(toPrint) = 29
+Child(13): strcmp second attempt to read worked!
+Child(13): toPrint = 'C: This is page one, pid = 13'
+Child(13): strlen(toPrint) = 29
+Child(14): strcmp second attempt to read worked!
+Child(14): toPrint = 'D: This is page one, pid = 14'
+Child(14): strlen(toPrint) = 29
+Child(11): after memcpy on iteration 1
+Child(11): strcmp first attempt to read worked!
+Child(11): strcmp second attempt to read worked!
+Child(11): toPrint = 'A: This is page two, pid = 11'
+Child(11): strlen(toPrint) = 29
+Child(12): after memcpy on iteration 1
+Child(12): strcmp first attempt to read worked!
+Child(12): strcmp second attempt to read worked!
+Child(12): toPrint = 'B: This is page two, pid = 12'
+Child(12): strlen(toPrint) = 29
+Child(13): after memcpy on iteration 1
+Child(13): strcmp first attempt to read worked!
+Child(13): strcmp second attempt to read worked!
+Child(13): toPrint = 'C: This is page two, pid = 13'
+Child(13): strlen(toPrint) = 29
+Child(14): after memcpy on iteration 1
+Child(14): strcmp first attempt to read worked!
+Child(14): strcmp second attempt to read worked!
+Child(14): toPrint = 'D: This is page two, pid = 14'
+Child(14): strlen(toPrint) = 29
+Child(11): after memcpy on iteration 2
+Child(11): strcmp first attempt to read worked!
+Child(11): strcmp second attempt to read worked!
+Child(11): checking various vmStats
+Child(11): terminating
+
+Child(12): after memcpy on iteration 2
+Child(12): strcmp first attempt to read worked!
+Child(13): after memcpy on iteration 2
+Child(13): strcmp first attempt to read worked!
+Child(12): strcmp second attempt to read worked!
+Child(12): checking various vmStats
+Child(12): terminating
+
+Child(13): strcmp second attempt to read worked!
+Child(13): checking various vmStats
+Child(13): terminating
+
+Child(14): after memcpy on iteration 2
+Child(14): strcmp first attempt to read worked!
+Child(14): strcmp second attempt to read worked!
+Child(14): checking various vmStats
+Child(14): terminating
+
+start5(): done
+VmStats
+pages:          4
+frames:         4
+diskBlocks:     64
+freeFrames:     4
+freeDiskBlocks: 64
+switches:       239
+faults:         12
+new:            12
+pageIns:        0
+pageOuts:       7
+replaced:       0
+All processes completed.
