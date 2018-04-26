@@ -30,6 +30,7 @@ extern void mbox_condsend(USLOSS_Sysargs *args_ptr);
 extern void mbox_condreceive(USLOSS_Sysargs *args_ptr);
 
 Process processes[MAXPROC];
+int numPages = 0, numFrames = 0;
 
 FaultMsg faults[MAXPROC]; /* Note that a process can have only
                            * one fault at a time, so we can
@@ -164,6 +165,14 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
    int dummy;
 
    CheckMode();
+
+   if (mappings < 0 || pages < 0 || frames < 0 || pagers < 0)
+	   return (void *)-1;
+   if (mappings != pages)
+	   return (void *)-1;
+   if (pagers > MAXPAGERS)
+	   return (void *)-1;	
+
    status = USLOSS_MmuInit(mappings, pages, frames, USLOSS_MMU_MODE_TLB);
    if (status != MMU_OK) {
       USLOSS_Console("vmInitReal: couldn't initialize MMU, status %d\n", status);
@@ -174,6 +183,18 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
    /*
     * Initialize page tables.
     */
+   numPages = pages;
+   for (int i = 0; i < MAXPROC; i++)
+   {
+	   Process *proc = getProc(i);
+	   proc->pageTable = malloc(pages * sizeof(PTE));
+	   if (proc->pageTable == NULL)
+	   {
+		   USLOSS_Console("vmInitReal(): Could not malloc page tables.\n");
+		   USLOSS_Halt(1);
+	   }
+	   initPageTable(i);
+   }
 
    /* 
     * Create the fault mailbox or semaphore
@@ -374,3 +395,19 @@ Pager(char *buf)
     }
     return 0;
 } /* Pager */
+
+///////////////////////////////////////////////////////////
+//-----------------Utilities-----------------------------//
+///////////////////////////////////////////////////////////
+
+
+void initPageTable(int pid)
+{
+	Process *proc = getProc(pid);
+	for (int i = 0; i < NumPages; i++)
+	{
+		proc->pageTable[i].state = UNUSED;
+		proc->pageTable[i].frame = EMPTY;
+		proc->pageTable[i].diskBlock = EMPTY;
+	}
+}
