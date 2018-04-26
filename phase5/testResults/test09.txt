@@ -1,0 +1,46 @@
+start5(): Running:    test09
+start5(): Pagers:     1
+          Mappings:   2
+          Pages:      2
+          Frames:     2
+          Children:   2
+          Iterations: 1
+          Priority:   5
+start5(): after call to VmInit, status = 0
+
+
+Child(11): starting
+Child(11): str = This is the first page for pid 11
+
+Child(11): strlen(str) = 34
+
+Child(12): starting
+Child(12): str = This is the first page for pid 12
+
+Child(12): strlen(str) = 34
+Child(11): after memcpy
+Child(11): strcmp first attempt to read worked!
+Child(12): after memcpy
+Child(12): strcmp first attempt to read worked!
+Child(11): strcmp second attempt to read worked!
+Child(11): checking various vmStats
+Child(11): terminating
+
+Child(12): strcmp second attempt to read worked!
+Child(12): checking various vmStats
+Child(12): terminating
+
+start5(): done
+VmStats
+pages:          2
+frames:         2
+diskBlocks:     64
+freeFrames:     2
+freeDiskBlocks: 64
+switches:       16
+faults:         2
+new:            2
+pageIns:        0
+pageOuts:       0
+replaced:       0
+All processes completed.

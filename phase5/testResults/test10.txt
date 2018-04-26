@@ -1,0 +1,54 @@
+start5(): Running:    test10
+start5(): Pagers:     1
+          Mappings:   2
+          Pages:      2
+          Frames:     2
+          Children:   2
+          Iterations: 2
+          Priority:   5
+start5(): after call to VmInit, status = 0
+
+
+Child(11): starting
+Child(11): toPrint = 'A: This is page zero, pid = 11'
+Child(11): strlen(toPrint) = 30
+
+Child(12): starting
+Child(12): toPrint = 'B: This is page zero, pid = 12'
+Child(12): strlen(toPrint) = 30
+Child(11): after memcpy on iteration 0
+Child(11): strcmp first attempt to read worked!
+Child(12): after memcpy on iteration 0
+Child(12): strcmp first attempt to read worked!
+Child(11): strcmp second attempt to read worked!
+Child(11): toPrint = 'A: This is page one, pid = 11'
+Child(11): strlen(toPrint) = 29
+Child(12): strcmp second attempt to read worked!
+Child(12): toPrint = 'B: This is page one, pid = 12'
+Child(12): strlen(toPrint) = 29
+Child(11): after memcpy on iteration 1
+Child(11): strcmp first attempt to read worked!
+Child(11): strcmp second attempt to read worked!
+Child(11): checking various vmStats
+Child(11): terminating
+
+Child(12): after memcpy on iteration 1
+Child(12): strcmp first attempt to read worked!
+Child(12): strcmp second attempt to read worked!
+Child(12): checking various vmStats
+Child(12): terminating
+
+start5(): done
+VmStats
+pages:          2
+frames:         2
+diskBlocks:     64
+freeFrames:     2
+freeDiskBlocks: 64
+switches:       75
+faults:         4
+new:            4
+pageIns:        0
+pageOuts:       2
+replaced:       0
+All processes completed.
