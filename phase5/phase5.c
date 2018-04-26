@@ -44,6 +44,16 @@ static void FaultHandler(int type, void * offset);
 
 static void vmInit(USLOSS_Sysargs *USLOSS_SysargsPtr);
 static void vmDestroy(USLOSS_Sysargs *USLOSS_SysargsPtr);
+void setUserMode();
+void *vmInitReal(int, int, int, int);
+void vmDestroyReal();
+
+#define CHECKMODE {                     \
+    if ( !(USLOSS_PsrGet() & USLOSS_PSR_CURRENT_MODE)) {                \
+        USLOSS_Console("Trying to invoke syscall from kernel\n");   \
+        USLOSS_Halt(1);                     \
+    }                           \
+}
 /*
  *----------------------------------------------------------------------
  *
@@ -288,7 +298,7 @@ vmDestroyReal(void)
  */
 static void
 FaultHandler(int type /* MMU_INT */,
-             int arg  /* Offset within VM region */)
+             void * offset  /* Offset within VM region */)
 {
    int cause;
 
@@ -300,6 +310,11 @@ FaultHandler(int type /* MMU_INT */,
     * Fill in faults[pid % MAXPROC], send it to the pagers, and wait for the
     * reply.
     */
+    int pid = getpid();
+    faults[pid % MAXPROC].pid = pid;
+    faults[pid % MAXPROC].addr = (void*)((long)(processes[pid % MAXPROC].pageTable) + (long)offset);
+    MboxSend(fault_num, &pid, sizeof(int));
+    MboxReceive(faults[pid % MAXPROC].replyMbox, NULL, 0);
 } /* FaultHandler */
 
 
@@ -376,3 +391,13 @@ Pager(char *buf)
     }
     return 0;
 } /* Pager */
+
+void setUserMode(){
+
+    int result = USLOSS_PsrSet( USLOSS_PsrGet() & ~USLOSS_PSR_CURRENT_MODE );
+    if(result != USLOSS_DEV_OK) {
+        USLOSS_Console("ERROR: USLOSS_PsrSet failed! Exiting....\n");
+        USLOSS_Halt(1);
+    }
+    
+} 
