@@ -36,7 +36,7 @@ FaultMsg faults[MAXPROC]; /* Note that a process can have only
                            * allocate the messages statically
                            * and index them by pid. */
 VmStats  vmStats;
-
+FTE *frameTable = NULL;
 
 static void FaultHandler(int type, void * offset);
 
@@ -319,6 +319,10 @@ FaultHandler(int type /* MMU_INT */,
 static int
 Pager(char *buf)
 {
+    Process *prc = NULL;
+    PTE* newPage = NULL;
+    FaultMsg *fault;
+    int pageNum = 0, frame = 0, pid = 0;
     while(1) {
         /* Wait for fault to occur (receive from mailbox) */
         /* Look for free frame */
@@ -326,6 +330,47 @@ Pager(char *buf)
          * replace a page (perhaps write to disk) */
         /* Load page into frame from disk, if necessary */
         /* Unblock waiting (faulting) process */
+	MboxReceive(fault_mid, &pid, sizeof(int));
+        fault = &faults[pid%MAXPROC];
+        if(isZapped())
+            break;
+        prc = &processes[pid%MAXPROC];
+        pageNum = ((long)fault->addr - (long)prc->pageTable) / USLOSS_MmuPageSize();
+        newPage =  &(prc->pageTable[pageNum]);
+        if (vmStats.freeFrames > 0){
+            vmStats.freeFrames--;
+            for(frame = 0; frame < vmStats.frames; frame++){
+                if (frameTable[frame].state == UNUSED){
+                    int result = USLOSS_MmuMap(TAG, pageNum, frame, USLOSS_MMU_PROT_RW);
+                    if (result != USLOSS_MMU_OK){
+                        USLOSS_Console("Pager():\t mmu map failed in %d, %d\n", pageNum, frame);
+                        USLOSS_Halt(1);                       
+                    }
+                    break;
+                }
+            }
+        }
+        else{
+            USLOSS_Console("Pager() store to disk:\t not done yet\n");
+            USLOSS_Halt(1);
+        }
+        if(newPage->state == UNUSED){
+            memset(vmRegion+pageNum*USLOSS_MmuPageSize(), 0, USLOSS_MmuPageSize());
+            vmStats.new++;
+        }
+        else{
+            USLOSS_Console("Pager() load from disk:\t not done yet\n");
+            USLOSS_Halt(1);            
+        }
+        /*update frame table*/
+        frameTable[frame].pid = pid;
+        frameTable[frame].state = INFRAME;
+        frameTable[frame].page = pageNum;
+
+        /*unpdate page table*/
+        prc->pageTable[pageNum].state = INFRAME;
+        prc->pageTable[pageNum].frame = frame;
+        MboxSend(fault->replyMbox, NULL, 0);
     }
     return 0;
 } /* Pager */
