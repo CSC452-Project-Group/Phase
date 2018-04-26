@@ -30,7 +30,9 @@ extern void mbox_condsend(USLOSS_Sysargs *args_ptr);
 extern void mbox_condreceive(USLOSS_Sysargs *args_ptr);
 
 Process processes[MAXPROC];
+int pagerPid[MAXPAGERS];
 int numPages = 0, numFrames = 0;
+int faultMBox;
 
 FaultMsg faults[MAXPROC]; /* Note that a process can have only
                            * one fault at a time, so we can
@@ -115,6 +117,7 @@ static void
 vmInit(USLOSS_Sysargs *USLOSS_SysargsPtr)
 {
     CheckMode();
+
 } /* vmInit */
 
 
@@ -199,10 +202,18 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
    /* 
     * Create the fault mailbox or semaphore
     */
+   faultMBox = MboxCreate(0, 0);
 
    /*
     * Fork the pagers.
     */
+   for (int i = 0; i < pagers; i++) {
+	   pagerPid[i] = fork1("Pager", Pager, NULL, USLOSS_MIN_STACK, PAGER_PRIORITY);
+	   if (pagerPid[i] < 0) {
+		   USLOSS_Console("vmInitReal(): could not create pager %d\n", i);
+		   USLOSS_Halt(1);
+	   }
+   }
 
    /*
     * Zero out, then initialize, the vmStats structure
