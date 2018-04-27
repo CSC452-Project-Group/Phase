@@ -57,23 +57,3 @@ typedef struct FaultMsg {
 } FaultMsg;
 
 Process processes[MAXPROC];
-
-struct procQueue5 {
-	procPtr5 head;
-	procPtr5 tail;
-	int 	 size;
-	int 	 type; /* which procPtr to use for next */
-};
-
-/*
-* Process struct for phase 5
-*/
-struct procStruct5 {
-	int             pid;
-	int 		    mboxID; /* 0 slot mailbox belonging to this process */
-	int(*startFunc) (char *);   /* function where process begins */
-	procPtr5     	nextProcPtr;
-	procPtr5        nextSiblingPtr;
-	procPtr5        parentPtr;
-	procQueue5 		childrenQueue;
-};

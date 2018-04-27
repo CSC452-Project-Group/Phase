@@ -33,6 +33,7 @@ Process processes[MAXPROC];
 int pagerPid[MAXPAGERS];
 int numPages = 0, numFrames = 0;
 int faultMBox;
+int vmInit = 0;
 
 FaultMsg faults[MAXPROC]; /* Note that a process can have only
                            * one fault at a time, so we can
@@ -118,6 +119,27 @@ vmInit(USLOSS_Sysargs *USLOSS_SysargsPtr)
 {
     CheckMode();
 
+	if (vmInit == 1) {
+		USLOSS_SysargsPtr->arg4 = (void *)((long)-2);
+		return;
+	}
+	
+	int mappings = (int)(long)USLOSS_SysargsPtr->arg1;
+	int pages = (int)(long)USLOSS_SysargsPtr->arg2;
+	int frames = (int)(long)USLOSS_SysargsPtr->arg3;
+	int pagers = (int)(long)USLOSS_SysargsPtr->arg4;
+
+	int result = vmInitReal(mappings, pages, frames, pagers);
+
+	if (result == -1) {
+		USLOSS_SysargsPtr->arg4 = (void *)((long)-1);
+		return;
+	}
+	else {
+		USLOSS_SysargsPtr->arg4 = (void *)((long)0);
+		USLOSS_SysargsPtr->arg1 = (void *)((long)result);
+	}
+
 } /* vmInit */
 
 
@@ -190,6 +212,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
    for (int i = 0; i < MAXPROC; i++)
    {
 	   Process *proc = getProc(i);
+	   proc->numPages = pages;
 	   proc->pageTable = malloc(pages * sizeof(PTE));
 	   if (proc->pageTable == NULL)
 	   {
@@ -197,6 +220,16 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 		   USLOSS_Halt(1);
 	   }
 	   initPageTable(i);
+   }
+
+   /*
+   * Initialize the frame table
+   */
+   numFrames = frames;
+   for (int i = 0; i < frames; i++) {
+	   frameTable[i].page = 0;
+	   frameTable[i].state = 0;
+	   frameTable[i].pid = -1;
    }
 
    /* 
