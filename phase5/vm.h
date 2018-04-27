@@ -43,7 +43,6 @@ typedef struct FTE {
 typedef struct Process {
     int  numPages;   // Size of the page table.
     PTE  *pageTable; // The page table for the process.
-    // Add more stuff here */
 } Process;
 
 /*
@@ -58,4 +57,3 @@ typedef struct FaultMsg {
 } FaultMsg;
 
 Process processes[MAXPROC];
-
