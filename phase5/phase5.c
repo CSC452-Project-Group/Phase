@@ -118,7 +118,6 @@ static void
 vmInit(USLOSS_Sysargs *USLOSS_SysargsPtr)
 {
     CheckMode();
-
 	if (vmInit == 1) {
 		USLOSS_SysargsPtr->arg4 = (void *)((long)-2);
 		return;
