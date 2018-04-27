@@ -91,6 +91,9 @@ start4(char *arg)
     // Initialize the phase 5 process table
 
     // Initialize other structures as needed
+    for(int i = 0; i < MAXPAGES; i++){
+	pagerPID[i] = -1;
+    }
 
     result = Spawn("Start5", start5, NULL, 8*USLOSS_MIN_STACK, 2, &pid);
     if (result != 0) {
