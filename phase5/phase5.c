@@ -33,7 +33,7 @@ Process processes[MAXPROC];
 int pagerPid[MAXPAGERS];
 int numPages = 0, numFrames = 0, numPagers = 0;
 int faultMBox;
-int vmInit = 0;
+int vmInitStarted = 0;
 int pagerSem;
 
 FaultMsg faults[MAXPROC]; /* Note that a process can have only
@@ -96,7 +96,7 @@ start4(char *arg)
 	// Initialize the phase 5 process table
 
 	// Initialize other structures as needed
-	for (int i = 0; i < MAXPAGES; i++) {
+	for (int i = 0; i < MAXPAGERS; i++) {
 		pagerPID[i] = -1;
 	}
 
@@ -133,8 +133,8 @@ start4(char *arg)
 static void
 vmInit(USLOSS_Sysargs *USLOSS_SysargsPtr)
 {
-	CheckMode();
-	if (vmInit == 1) {
+	CHECKMODE;
+	if (vmInitStarted == 1) {
 		USLOSS_SysargsPtr->arg4 = (void *)((long)-2);
 		return;
 	}
@@ -144,7 +144,7 @@ vmInit(USLOSS_Sysargs *USLOSS_SysargsPtr)
 	int frames = (int)(long)USLOSS_SysargsPtr->arg3;
 	int pagers = (int)(long)USLOSS_SysargsPtr->arg4;
 
-	int result = vmInitReal(mappings, pages, frames, pagers);
+	int result = (int)(long)vmInitReal(mappings, pages, frames, pagers);
 
 	if (result == -1) {
 		USLOSS_SysargsPtr->arg4 = (void *)((long)-1);
@@ -178,9 +178,9 @@ vmInit(USLOSS_Sysargs *USLOSS_SysargsPtr)
 static void
 vmDestroy(USLOSS_Sysargs *USLOSS_SysargsPtr)
 {
-	CheckMode();
+	CHECKMODE;
 
-	if (vmInit == 0) {
+	if (vmInitStarted == 0) {
 		return;
 	}
 	else {
@@ -214,7 +214,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 	int status;
 	int dummy;
 
-	CheckMode();
+	CHECKMODE;
 
 	if (mappings < 0 || pages < 0 || frames < 0 || pagers < 0)
 		return (void *)-1;
@@ -299,7 +299,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 	vmStats->pageOuts = 0;
 	vmStats->replaced = 0;
 
-	vmInit = 1;
+	vmInitStarted = 1;
 	return USLOSS_MmuRegion(&dummy);
 } /* vmInitReal */
 
@@ -357,7 +357,7 @@ void
 vmDestroyReal(void)
 {
 
-	CheckMode();
+	CHECKMODE;
 	USLOSS_MmuDone();
 	int result = USLOSS_MmuDone();
 	/*
@@ -371,7 +371,7 @@ vmDestroyReal(void)
 		sempReal(pagerSem);
 	}
 
-	vmInit = 0;
+	vmInitStarted = 0;
 
 	/*
 	* Print vm statistics.
