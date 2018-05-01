@@ -237,7 +237,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 	numPages = pages;
 	for (int i = 0; i < MAXPROC; i++)
 	{
-		Process *proc = &ProcTable[pid % MAXPROC];
+		Process *proc = &processes[pid % MAXPROC];
 		proc->numPages = pages;
 		proc->pageTable = malloc(pages * sizeof(PTE));
 		if (proc->pageTable == NULL)
@@ -292,7 +292,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 	int diskSize = disk * track * sector;
 	vmStats.diskBlocks = diskSize / USLOSS_MmuPageSize();
 	vmStats.freeFrames = frames;
-	vmStats.freeDiskBlocks = vmStats->diskBlocks;
+	vmStats.freeDiskBlocks = vmStats.diskBlocks;
 	vmStats.switches = 0;
 	vmStats.faults = 0;
 	vmStats.new = 0;
@@ -384,7 +384,7 @@ vmDestroyReal(void)
 
 	for (int i = 0; i < MAXPROC; i++)
 	{
-		Process *proc = getProc(i);
+		Process *proc = &processes[pid % MAXPROC];
 		free(proc->pageTable);
 	}
 	free(frameTable);
@@ -512,7 +512,7 @@ Pager(char *buf)
 
 void initPageTable(int pid)
 {
-	Process *proc = &ProcTable[pid % MAXPROC];
+	Process *proc = &processes[pid % MAXPROC];
 	for (int i = 0; i < NumPages; i++)
 	{
 		proc->pageTable[i].state = UNUSED;
