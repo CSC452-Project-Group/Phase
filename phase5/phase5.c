@@ -52,6 +52,7 @@ static void vmDestroy(USLOSS_Sysargs *USLOSS_SysargsPtr);
 void setUserMode();
 void *vmInitReal(int, int, int, int);
 void vmDestroyReal();
+void initPageTable(int pid);
 
 #define CHECKMODE {                     \
     if ( !(USLOSS_PsrGet() & USLOSS_PSR_CURRENT_MODE)) {                \
@@ -224,7 +225,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 		return (void *)-1;
 
 	status = USLOSS_MmuInit(mappings, pages, frames, USLOSS_MMU_MODE_TLB);
-	if (status != MMU_OK) {
+	if (status != USLOSS_MMU_OK) {
 		USLOSS_Console("vmInitReal: couldn't initialize MMU, status %d\n", status);
 		abort();
 	}
@@ -236,7 +237,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 	numPages = pages;
 	for (int i = 0; i < MAXPROC; i++)
 	{
-		Process *proc = getProc(i);
+		Process *proc = &ProcTable[pid % MAXPROC];
 		proc->numPages = pages;
 		proc->pageTable = malloc(pages * sizeof(PTE));
 		if (proc->pageTable == NULL)
@@ -251,7 +252,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 	* Initialize the frame table
 	*/
 	numFrames = frames;
-	FrameTable = malloc(frames * sizeof(Frame));
+	frameTable = malloc(frames * sizeof(Frame));
 	for (int i = 0; i < frames; i++) {
 		frameTable[i].page = 0;
 		frameTable[i].state = 0;
@@ -289,15 +290,15 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 	int disk;
 	diskSizeReal(1, &sector, &track, &disk);
 	int diskSize = disk * track * sector;
-	vmStats->diskBlocks = diskSize / USLOSS_MmuPageSize();
-	vmStats->freeFrames = frames;
-	vmStats->freeDiskBlocks = vmStats->diskBlocks;
-	vmStats->switches = 0;
-	vmStats->faults = 0;
-	vmStats->new = 0;
-	vmStats->pageIns = 0;
-	vmStats->pageOuts = 0;
-	vmStats->replaced = 0;
+	vmStats.diskBlocks = diskSize / USLOSS_MmuPageSize();
+	vmStats.freeFrames = frames;
+	vmStats.freeDiskBlocks = vmStats->diskBlocks;
+	vmStats.switches = 0;
+	vmStats.faults = 0;
+	vmStats.new = 0;
+	vmStats.pageIns = 0;
+	vmStats.pageOuts = 0;
+	vmStats.replaced = 0;
 
 	vmInitStarted = 1;
 	return USLOSS_MmuRegion(&dummy);
@@ -359,7 +360,6 @@ vmDestroyReal(void)
 
 	CHECKMODE;
 	USLOSS_MmuDone();
-	int result = USLOSS_MmuDone();
 	/*
 	* Kill the pagers here.
 	*/
@@ -379,7 +379,7 @@ vmDestroyReal(void)
 	USLOSS_Console("vmStats:\n");
 	USLOSS_Console("pages: %d\n", vmStats.pages);
 	USLOSS_Console("frames: %d\n", vmStats.frames);
-	USLOSS_Console("blocks: %d\n", vmStats.blocks);
+	USLOSS_Console("blocks: %d\n", vmStats.diskBlocks);
 	/* and so on... */
 
 	for (int i = 0; i < MAXPROC; i++)
@@ -387,7 +387,7 @@ vmDestroyReal(void)
 		Process *proc = getProc(i);
 		free(proc->pageTable);
 	}
-	free(FrameTable);
+	free(frameTable);
 
 } /* vmDestroyReal */
 
@@ -512,12 +512,12 @@ Pager(char *buf)
 
 void initPageTable(int pid)
 {
-	Process *proc = getProc(pid);
+	Process *proc = &ProcTable[pid % MAXPROC];
 	for (int i = 0; i < NumPages; i++)
 	{
 		proc->pageTable[i].state = UNUSED;
-		proc->pageTable[i].frame = EMPTY;
-		proc->pageTable[i].diskBlock = EMPTY;
+		proc->pageTable[i].frame = 0;
+		proc->pageTable[i].diskBlock = 0;
 	}
 }
 
