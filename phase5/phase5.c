@@ -31,9 +31,10 @@ extern void mbox_condreceive(USLOSS_Sysargs *args_ptr);
 
 Process processes[MAXPROC];
 int pagerPid[MAXPAGERS];
-int numPages = 0, numFrames = 0;
+int numPages = 0, numFrames = 0, numPagers = 0;
 int faultMBox;
 int vmInit = 0;
+int pagerSem;
 
 FaultMsg faults[MAXPROC]; /* Note that a process can have only
 						  * one fault at a time, so we can
@@ -153,6 +154,7 @@ vmInit(USLOSS_Sysargs *USLOSS_SysargsPtr)
 		USLOSS_SysargsPtr->arg4 = (void *)((long)0);
 		USLOSS_SysargsPtr->arg1 = (void *)((long)result);
 	}
+	setUserMode();
 
 } /* vmInit */
 
@@ -177,6 +179,15 @@ static void
 vmDestroy(USLOSS_Sysargs *USLOSS_SysargsPtr)
 {
 	CheckMode();
+
+	if (vmInit == 0) {
+		return;
+	}
+	else {
+		vmDestroyReal();
+	}
+	setUserMode();
+
 } /* vmDestroy */
 
 
@@ -240,6 +251,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 	* Initialize the frame table
 	*/
 	numFrames = frames;
+	FrameTable = malloc(frames * sizeof(Frame));
 	for (int i = 0; i < frames; i++) {
 		frameTable[i].page = 0;
 		frameTable[i].state = 0;
@@ -254,6 +266,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 	/*
 	* Fork the pagers.
 	*/
+	numPagers = pagers;
 	for (int i = 0; i < pagers; i++) {
 		pagerPid[i] = fork1("Pager", Pager, NULL, USLOSS_MIN_STACK, PAGER_PRIORITY);
 		if (pagerPid[i] < 0) {
@@ -271,7 +284,22 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 	/*
 	* Initialize other vmStats fields.
 	*/
+	int sector;
+	int track;
+	int disk;
+	diskSizeReal(1, &sector, &track, &disk);
+	int diskSize = disk * track * sector;
+	vmStats->diskBlocks = diskSize / USLOSS_MmuPageSize();
+	vmStats->freeFrames = frames;
+	vmStats->freeDiskBlocks = vmStats->diskBlocks;
+	vmStats->switches = 0;
+	vmStats->faults = 0;
+	vmStats->new = 0;
+	vmStats->pageIns = 0;
+	vmStats->pageOuts = 0;
+	vmStats->replaced = 0;
 
+	vmInit = 1;
 	return USLOSS_MmuRegion(&dummy);
 } /* vmInitReal */
 
@@ -331,9 +359,20 @@ vmDestroyReal(void)
 
 	CheckMode();
 	USLOSS_MmuDone();
+	int result = USLOSS_MmuDone();
 	/*
 	* Kill the pagers here.
 	*/
+	pagerSem = semcreateReal(0);
+
+	for (int i = 0; i < numPagers; i++) {
+		int dead = -1;
+		MboxSend(faultMBox, &dead, sizeof(int));
+		sempReal(pagerSem);
+	}
+
+	vmInit = 0;
+
 	/*
 	* Print vm statistics.
 	*/
@@ -342,6 +381,13 @@ vmDestroyReal(void)
 	USLOSS_Console("frames: %d\n", vmStats.frames);
 	USLOSS_Console("blocks: %d\n", vmStats.blocks);
 	/* and so on... */
+
+	for (int i = 0; i < MAXPROC; i++)
+	{
+		Process *proc = getProc(i);
+		free(proc->pageTable);
+	}
+	free(FrameTable);
 
 } /* vmDestroyReal */
 
