@@ -14,6 +14,7 @@
 #include <phase4.h>
 #include <phase5.h>
 #include <libuser.h>
+#include <string.h>
 
 #define CHECKMODE {    \
     if (USLOSS_PsrGet() & USLOSS_PSR_CURRENT_MODE) { \
