@@ -237,7 +237,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 	numPages = pages;
 	for (int i = 0; i < MAXPROC; i++)
 	{
-		Process *proc = &processes[pid % MAXPROC];
+		Process *proc = &processes[i % MAXPROC];
 		proc->numPages = pages;
 		proc->pageTable = malloc(pages * sizeof(PTE));
 		if (proc->pageTable == NULL)
@@ -252,7 +252,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
 	* Initialize the frame table
 	*/
 	numFrames = frames;
-	frameTable = malloc(frames * sizeof(Frame));
+	frameTable = malloc(frames * sizeof(FTE));
 	for (int i = 0; i < frames; i++) {
 		frameTable[i].page = 0;
 		frameTable[i].state = 0;
@@ -359,7 +359,12 @@ vmDestroyReal(void)
 {
 
 	CHECKMODE;
-	USLOSS_MmuDone();
+	int result = USLOSS_MmuDone();
+
+	if (result == -1) {
+		USLOSS_Console("vmDestroyReal(): result for MmuDone was -1\n");
+	}
+
 	/*
 	* Kill the pagers here.
 	*/
@@ -384,7 +389,7 @@ vmDestroyReal(void)
 
 	for (int i = 0; i < MAXPROC; i++)
 	{
-		Process *proc = &processes[pid % MAXPROC];
+		Process *proc = &processes[i % MAXPROC];
 		free(proc->pageTable);
 	}
 	free(frameTable);
@@ -513,7 +518,7 @@ Pager(char *buf)
 void initPageTable(int pid)
 {
 	Process *proc = &processes[pid % MAXPROC];
-	for (int i = 0; i < NumPages; i++)
+	for (int i = 0; i < numPagers; i++)
 	{
 		proc->pageTable[i].state = UNUSED;
 		proc->pageTable[i].frame = 0;
