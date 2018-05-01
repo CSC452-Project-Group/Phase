@@ -91,8 +91,8 @@ start4(char *arg)
 	systemCallVec[SYS_MBOXCONDRECEIVE] = mbox_condreceive;
 
 	/* user-process access to VM functions */
-	sys_vec[SYS_VMINIT] = vmInit;
-	sys_vec[SYS_VMDESTROY] = vmDestroy;
+	systemCallVec[SYS_VMINIT] = vmInit;
+	systemCallVec[SYS_VMDESTROY] = vmDestroy;
 
 	// Initialize the phase 5 process table
 
