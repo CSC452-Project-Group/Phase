@@ -8,7 +8,7 @@
  * All processes use the same tag.
  */
 #define TAG 0
-
+#define SWAPDISK 1
 /*
  * Different states for a page.
  */
@@ -26,6 +26,8 @@ typedef struct PTE {
     int  frame;      // Frame that stores the page (if any). -1 if none.
     int  diskBlock;  // Disk block that stores the page (if any). -1 if none.
     // Add more stuff here
+    int track;
+    int sector;
 } PTE;
 
 /*

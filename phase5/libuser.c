@@ -14,7 +14,7 @@
 #include <phase4.h>
 #include <phase5.h>
 #include <libuser.h>
-
+#include <string.h>
 #define CHECKMODE {    \
     if (USLOSS_PsrGet() & USLOSS_PSR_CURRENT_MODE) { \
         USLOSS_Console("Trying to invoke syscall from kernel\n"); \
@@ -111,19 +111,6 @@ int Mbox_CondReceive(int mboxID, void *msgPtr, int msgSize)
     return ((int) (long) sysArg.arg4);
 } /* end of Mbox_CondReceive */
 
-/*
- *  Routine:  VmInit
- *
- *  Description: Initializes the virtual memory system.
- *
- *  Arguments:    int mappings -- # of mappings in the MMU
- *                int pages -- # pages in the VM region
- *                int frames -- # physical page frames
- *                int pagers -- # pagers to use
- *
- *  Return Value: address of VM region, NULL if there was an error
- *
- */
 int VmInit(int mappings, int pages, int frames, int pagers, void **region)
 {
     USLOSS_Sysargs sysArg;

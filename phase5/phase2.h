@@ -4,7 +4,6 @@
 
 #ifndef _PHASE2_H
 #define _PHASE2_H
-
 // Maximum line length. Used by terminal read and write.
 #define MAXLINE         80
 

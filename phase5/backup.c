@@ -123,21 +123,10 @@ vmInit(USLOSS_Sysargs *USLOSS_SysargsPtr)
 {
     CHECKMODE;
 
-    int mappings = (int)(long)USLOSS_SysargsPtr->arg1;
-    int pages = (int)(long)USLOSS_SysargsPtr->arg2;
-    int frames = (int)(long)USLOSS_SysargsPtr->arg3;
-    int pagers = (int)(long)USLOSS_SysargsPtr->arg4;
+    USLOSS_SysargsPtr->arg1 = vmInitReal((long)USLOSS_SysargsPtr->arg1, (long)USLOSS_SysargsPtr->arg2, \
+                            (long)USLOSS_SysargsPtr->arg3, (long)USLOSS_SysargsPtr->arg4);
 
-    int result = (int)(long)vmInitReal(mappings, pages, frames, pagers);
-
-    if (result == -1) {
-	USLOSS_SysargsPtr->arg4 = (void *)((long)-1);
-	return;
-    }
-    else {
-	USLOSS_SysargsPtr->arg4 = (void *)((long)0);
-	USLOSS_SysargsPtr->arg1 = (void *)((long)result);
-    }
+    USLOSS_SysargsPtr->arg4 = USLOSS_SysargsPtr->arg1 < 0 ? USLOSS_SysargsPtr->arg1 : (void *)(long)0;
     setUserMode();
 
 } /* vmInit */
@@ -198,7 +187,7 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
     // installing a handler for the MMU_Init interrupt
     status = USLOSS_MmuInit(mappings, pages, frames, USLOSS_MMU_MODE_TLB);
     if (status != USLOSS_MMU_OK) {
-        USLOSS_Console("vmInitReal(): couldn't initialize MMU, status %d\n", status);
+        USLOSS_Console("vmInitReal: couldn't initialize MMU, status %d\n", status);
         abort();
     }
     USLOSS_IntVec[USLOSS_MMU_INT] = FaultHandler;
@@ -235,7 +224,6 @@ vmInitReal(int mappings, int pages, int frames, int pagers)
      */
     faultC = MboxCreate(pagers, sizeof(FaultMsg));
     cMutex = semcreateReal(1);
-    
     /*
      * Fork the pagers.
      */
@@ -324,10 +312,11 @@ vmDestroyReal(void)
 {
     vmRegion = NULL;
 
+    int errorCode;
     CHECKMODE;
-    int result = USLOSS_MmuDone();
-    if (result != USLOSS_MMU_OK){
-        USLOSS_Console("vmDestroyReal(): result for MmuDone was -1\n");
+    errorCode = USLOSS_MmuDone();
+    if (errorCode != USLOSS_MMU_OK){
+        USLOSS_Console("ERROR: Turn off MMU failed! Exiting....\n");
         USLOSS_Halt(1);        
     }
 
@@ -342,6 +331,8 @@ vmDestroyReal(void)
             join(&status);
         }
     }
+
+    // release the faults message and falut mailbox.
     for (int i = 0; i < MAXPROC; i++) {
         MboxRelease(faults[i].replyMbox);
     }
@@ -387,7 +378,7 @@ FaultHandler(int type /* MMU_INT */,
     int pid = getpid();
     faults[pid % MAXPROC].pid = pid;
     faults[pid % MAXPROC].addr = (void*)((long)(processes[pid % MAXPROC].pageTable) + (long)offset);
-
+    // send fault mailbox to pagers and block the current process
     MboxSend(faultC, &pid, sizeof(int));
     MboxReceive(faults[pid % MAXPROC].replyMbox, NULL, 0);
 } /* FaultHandler */
@@ -411,24 +402,24 @@ static int
 Pager(char *buf)
 {
     FaultMsg *fault = NULL;
-    Process *proc = NULL;
-    PTE* pageA = NULL;
-    PTE* pageB = NULL;
-    int pageAN = 0, pageBN, frame = 0, pid = 0, result = -1, access = -1;
+    Process *prc = NULL;
+    PTE* newPage = NULL;
+    PTE* oldPage = NULL;
+    int new_pageNum = 0, old_pageNum, frame = 0, pid = 0, result = -1, access = -1;
     char buffer[USLOSS_MmuPageSize()];
 
     while(1) {
-       
+        //get segment fault process pid
         MboxReceive(faultC, &pid, sizeof(int));
-        
+        //based on the pid, get fault message
         fault = &faults[pid%MAXPROC];
         if(isZapped())
             break;
-        proc = &processes[pid%MAXPROC];
-        
-        pageAN = ((long)fault->addr - (long)proc->pageTable) / USLOSS_MmuPageSize();
-        
-        pageA =  &(proc->pageTable[pageAN]);
+        prc = &processes[pid%MAXPROC];
+        //calculate new page number
+        new_pageNum = ((long)fault->addr - (long)prc->pageTable) / USLOSS_MmuPageSize();
+        //based on new page number, get new page PTE
+        newPage =  &(prc->pageTable[new_pageNum]);
         
         sempReal(cMutex);
         if (vmStats.freeFrames > 0){
@@ -459,35 +450,37 @@ Pager(char *buf)
             vmStats.freeFrames--;
         else{
             result = USLOSS_MmuGetAccess(frame, &access);
-            
-            pageBN = frameT[frame].page;
-            pageB = &processes[frameT[frame].pid].pageTable[pageBN];
-            pageB->frame = -1;
-            pageB->state = INCORE;
-            
+            //update old page
+            old_pageNum = frameT[frame].page;
+            oldPage = &processes[frameT[frame].pid].pageTable[old_pageNum];
+            oldPage->frame = -1;
+            oldPage->state = INCORE;
+            //map frame to page 0
             result = USLOSS_MmuMap(TAG, 0, frame, USLOSS_MMU_PROT_RW);
             if (result != USLOSS_MMU_OK){
                 USLOSS_Console("Pager():\t mmu map failed1 in %d, %d, %d\n", 0, frame, result);
                 USLOSS_Halt(1);                       
             }
             memcpy(&buffer, vmRegion, USLOSS_MmuPageSize());
-            
+            //if (strlen(buffer) != 0){
             if(access >= 2){
-                result = USLOSS_MmuUnmap(frame, pageBN);
-                if (pageB->diskBlock == UNUSED){
-                    pageB->diskBlock++;
-                    pageB->track = track / 2;
-                    pageB->sector = sector % 2 == 0 ? 0 : USLOSS_MmuPageSize()/USLOSS_DISK_SECTOR_SIZE;
+                result = USLOSS_MmuUnmap(frame, old_pageNum);
+                //USLOSS_Console("\nPager():\t %d, %d, %d, %s\n\n", old_pageNum, new_pageNum, frame, buffer);
+                if (oldPage->diskBlock == UNUSED){
+                    //USLOSS_Console("\nchild(%d) use disk block %d\n\n", pid, frameT[frame].pid);
+                    oldPage->diskBlock++;
+                    oldPage->track = track / 2;
+                    oldPage->sector = sector % 2 == 0 ? 0 : USLOSS_MmuPageSize()/USLOSS_DISK_SECTOR_SIZE;
                     track++;
                     sector++;
                 }
-                diskWriteReal (SWAPDISK, pageB->track, pageB->sector, USLOSS_MmuPageSize()/USLOSS_DISK_SECTOR_SIZE, &buffer);
+                diskWriteReal (SWAPDISK, oldPage->track, oldPage->sector, USLOSS_MmuPageSize()/USLOSS_DISK_SECTOR_SIZE, &buffer);
                 vmStats.pageOuts++;
             }
             result = USLOSS_MmuUnmap(TAG, 0);
         }
         
-        if(pageA->state == UNUSED){
+        if(newPage->state == UNUSED){
             result = USLOSS_MmuMap(TAG, 0, frame, USLOSS_MMU_PROT_RW);
             if (result != USLOSS_MMU_OK){
                 USLOSS_Console("Pager():\t mmu map failed2 in %d, %d, %d\n", 0, frame, result);
@@ -498,8 +491,8 @@ Pager(char *buf)
             result = USLOSS_MmuUnmap(TAG, 0);
             result = USLOSS_MmuSetAccess(frame, 1);
         }
-        else if(pageA->diskBlock != UNUSED && pageA != pageB){
-            diskReadReal (SWAPDISK, pageA->track, pageA->sector, USLOSS_MmuPageSize()/USLOSS_DISK_SECTOR_SIZE, &buffer);
+        else if(newPage->diskBlock != UNUSED && newPage != oldPage){
+            diskReadReal (SWAPDISK, newPage->track, newPage->sector, USLOSS_MmuPageSize()/USLOSS_DISK_SECTOR_SIZE, &buffer);
             result = USLOSS_MmuMap(TAG, 0, frame, USLOSS_MMU_PROT_RW);
             if (result != USLOSS_MMU_OK){
                 USLOSS_Console("Pager():\t mmu map failed3 in %d, %d, %d\n", 0, frame, result);
@@ -510,12 +503,14 @@ Pager(char *buf)
             result = USLOSS_MmuUnmap(TAG, 0);          
         }
 
-        // update frame table and page table
+        // update frame table
         frameT[frame].pid = pid;
         frameT[frame].state = INFRAME;
-        frameT[frame].page = pageAN;
-        proc->pageTable[pageAN].state = INFRAME;
-        proc->pageTable[pageAN].frame = frame;
+        frameT[frame].page = new_pageNum;
+
+        // unpdate page table
+        prc->pageTable[new_pageNum].state = INFRAME;
+        prc->pageTable[new_pageNum].frame = frame;
         MboxSend(fault->replyMbox, NULL, 0);
     }
     return 0;

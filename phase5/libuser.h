@@ -30,5 +30,6 @@ extern int  TermRead(char *buff, int bsize, int unit_id, int *nread);
 extern int  TermWrite(char *buff, int bsize, int unit_id, int *nwrite);
 
 // Phase 5 -- User Function Prototypes
-
+extern int VmInit(int mappings, int pages, int frames, int pagers, void **region);
+extern int VmDestroy(void);
 #endif
